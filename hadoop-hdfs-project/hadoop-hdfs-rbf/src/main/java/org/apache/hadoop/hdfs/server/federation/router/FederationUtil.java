@@ -24,6 +24,7 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.net.URLConnection;
+import java.security.PrivilegedExceptionAction;
 import java.util.EnumSet;
 
 import org.apache.hadoop.conf.Configuration;
@@ -34,6 +35,7 @@ import org.apache.hadoop.hdfs.server.federation.resolver.ActiveNamenodeResolver;
 import org.apache.hadoop.hdfs.server.federation.resolver.FileSubclusterResolver;
 import org.apache.hadoop.hdfs.server.federation.store.StateStoreService;
 import org.apache.hadoop.hdfs.web.URLConnectionFactory;
+import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.delegation.AbstractDelegationTokenSecretManager;
 import org.apache.hadoop.util.VersionInfo;
@@ -79,8 +81,9 @@ public final class FederationUtil {
       URL jmxURL = new URL(scheme, host, port, "/jmx?qry=" + beanQuery);
       LOG.debug("JMX URL: {}", jmxURL);
       // Create a URL connection
-      URLConnection conn = connectionFactory.openConnection(
-          jmxURL, UserGroupInformation.isSecurityEnabled());
+      URLConnection conn = SecurityUtil.doAsCurrentUser(
+          () -> connectionFactory.openConnection(
+              jmxURL, UserGroupInformation.isSecurityEnabled()));
       conn.setConnectTimeout(5 * 1000);
       conn.setReadTimeout(5 * 1000);
       InputStream in = conn.getInputStream();
