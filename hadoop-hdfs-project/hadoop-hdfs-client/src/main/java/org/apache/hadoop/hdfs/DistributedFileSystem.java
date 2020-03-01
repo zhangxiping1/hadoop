@@ -57,10 +57,12 @@ import org.apache.hadoop.fs.Options.ChecksumOpt;
 import org.apache.hadoop.fs.Options.HandleOpt;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.PathIsNotEmptyDirectoryException;
 import org.apache.hadoop.fs.QuotaUsage;
 import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.fs.StorageStatistics;
 import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.fs.Trash;
 import org.apache.hadoop.fs.UnresolvedLinkException;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
 import org.apache.hadoop.fs.XAttrSetFlag;
@@ -958,10 +960,39 @@ public class DistributedFileSystem extends FileSystem
     statistics.incrementWriteOps(1);
     storageStatistics.incrementOpCounter(OpType.DELETE);
     Path absF = fixRelativePart(f);
+    final FileSystem thisfs = this;
     return new FileSystemLinkResolver<Boolean>() {
       @Override
       public Boolean doCall(final Path p) throws IOException {
-        return dfs.delete(getPathName(p), recursive);
+        String pStr = getPathName(p);
+        if (getConf().getBoolean(HdfsClientConfigKeys.DFS_CLIENT_API_DELETE_TO_TRASH,
+            HdfsClientConfigKeys.DFS_CLIENT_API_DELETE_TO_TRASH_DEFAULT)) {
+          HdfsFileStatus fileStatus = dfs.getFileInfo(pStr);
+          if (!recursive && fileStatus.isDir() && fileStatus.getChildrenNum() != 0) {
+            throw new PathIsNotEmptyDirectoryException(pStr + " is non empty");
+          }
+          try {
+            /**
+             * Two conditions will return false:
+             * 1. Trash is unable.
+             * 2. Delete trash data.
+             *
+             * The others conditions will throw exception.
+             */
+            if (Trash.moveToAppropriateTrash(thisfs, p, getConf())) {
+              return true;
+            }
+          } catch (FileNotFoundException fnfe) {
+            throw fnfe;
+          } catch (IOException ioe) {
+            String msg = ioe.getMessage();
+            if (ioe.getCause() != null) {
+              msg += ": " + ioe.getCause().getMessage();
+            }
+            throw new IOException(msg + ". Consider set dfs.client.api-delete-to-trash false", ioe);
+          }
+        }
+        return dfs.delete(pStr, recursive);
       }
       @Override
       public Boolean next(final FileSystem fs, final Path p)

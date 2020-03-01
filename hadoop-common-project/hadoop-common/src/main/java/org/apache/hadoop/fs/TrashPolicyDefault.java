@@ -152,7 +152,7 @@ public class TrashPolicyDefault extends TrashPolicy {
       try {
         if (!fs.mkdirs(baseTrashPath, PERMISSION)) {      // create current
           LOG.warn("Can't create(mkdir) trash directory: " + baseTrashPath);
-          return false;
+          throw new IOException(String.format("Can't create(mkdir) trash directory: %s; mkdirs return false", baseTrashPath));
         }
       } catch (FileAlreadyExistsException e) {
         // find the path which is not a directory, and modify baseTrashPath
