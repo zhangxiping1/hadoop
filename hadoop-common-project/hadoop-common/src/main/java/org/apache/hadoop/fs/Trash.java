@@ -73,8 +73,12 @@ public class Trash extends Configured {
   public static boolean moveToAppropriateTrash(FileSystem fs, Path p,
       Configuration conf) throws IOException {
     Path fullyResolvedPath = fs.resolvePath(p);
-    FileSystem fullyResolvedFs =
-        FileSystem.get(fullyResolvedPath.toUri(), conf);
+    FileSystem fullyResolvedFs;
+    if (fullyResolvedPath.toString().startsWith(fs.getCanonicalUri().toString())) {
+      fullyResolvedFs = fs;
+    } else {
+      fullyResolvedFs = FileSystem.get(fullyResolvedPath.toUri(), conf);
+    }
     // If the trash interval is configured server side then clobber this
     // configuration so that we always respect the server configuration.
     try {
