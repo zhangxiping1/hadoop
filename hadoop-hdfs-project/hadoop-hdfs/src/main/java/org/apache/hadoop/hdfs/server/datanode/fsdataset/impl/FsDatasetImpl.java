@@ -184,7 +184,7 @@ class FsDatasetImpl implements FsDatasetSpi<FsVolumeImpl> {
   public FsVolumeImpl getVolume(final ExtendedBlock b) {
     try (AutoCloseableLock lock = datasetWriteLock.acquire()) {
       final ReplicaInfo r =
-          volumeMap.get(b.getBlockPoolId(), b.getLocalBlock());
+          volumeMap.get(b.getBlockPoolId(), b.getBlockId());
       return r != null ? (FsVolumeImpl) r.getVolume() : null;
     }
   }
