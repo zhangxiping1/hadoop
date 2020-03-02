@@ -74,6 +74,7 @@ public class Slf4jSink implements MetricsSink, Closeable {
       sb.append("=");
       sb.append(metric.value());
     }
+    sb.append(" ");
   }
 
   @Override
