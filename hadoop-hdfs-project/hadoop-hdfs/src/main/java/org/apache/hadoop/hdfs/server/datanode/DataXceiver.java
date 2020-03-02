@@ -416,19 +416,27 @@ class DataXceiver extends Receiver implements Runnable {
         success = true;
       }
     } finally {
-      if ((!success) && (registeredSlotId != null)) {
-        LOG.info("Unregistering {} because the " +
-            "requestShortCircuitFdsForRead operation failed.",
-            registeredSlotId);
-        datanode.shortCircuitRegistry.unregisterSlot(registeredSlotId);
-      }
-      if (ClientTraceLog.isInfoEnabled()) {
-        DatanodeRegistration dnR = datanode.getDNRegistrationForBP(blk
-            .getBlockPoolId());
-        BlockSender.ClientTraceLog.info(String.format(
-            "src: 127.0.0.1, dest: 127.0.0.1, op: REQUEST_SHORT_CIRCUIT_FDS," +
-            " blockid: %s, srvID: %s, success: %b",
-            blk.getBlockId(), dnR.getDatanodeUuid(), success));
+      try {
+        if ((!success) && (registeredSlotId != null)) {
+          LOG.info("Unregistering {} because the " +
+                  "requestShortCircuitFdsForRead operation failed.",
+              registeredSlotId);
+          datanode.shortCircuitRegistry.unregisterSlot(registeredSlotId);
+        }
+        if (ClientTraceLog.isInfoEnabled()) {
+          DatanodeRegistration dnR = datanode.getDNRegistrationForBP(blk
+              .getBlockPoolId());
+          BlockSender.ClientTraceLog.info(String.format(
+              "src: 127.0.0.1, dest: 127.0.0.1, op: " +
+                  "REQUEST_SHORT_CIRCUIT_FDS," +
+                  " blockid: %s, srvID: %s, success: %b",
+              blk.getBlockId(), dnR.getDatanodeUuid(), success));
+        }
+      } catch (Exception e) {
+        LOG.warn("Registry is not enabled");
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Exception trace : " + e);
+        }
       }
       if (fis != null) {
         IOUtils.cleanup(null, fis);
