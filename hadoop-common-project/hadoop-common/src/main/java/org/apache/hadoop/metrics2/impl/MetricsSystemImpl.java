@@ -486,7 +486,8 @@ public class MetricsSystemImpl extends MetricsSystem implements MetricsSource {
   }
 
   private synchronized void configureSinks() {
-    sinkConfigs = config.getInstanceConfigs(SINK_KEY);
+    sinkConfigs = new MetricsConfig(config.getParent(), "*").getInstanceConfigs(SINK_KEY);
+    sinkConfigs.putAll(config.getInstanceConfigs(SINK_KEY));
     long confPeriodMillis = 0;
     for (Entry<String, MetricsConfig> entry : sinkConfigs.entrySet()) {
       MetricsConfig conf = entry.getValue();
