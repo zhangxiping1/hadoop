@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.federation.resolver;
 
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.hadoop.hdfs.server.federation.router.RemoteLocationContext;
 
 /**
@@ -33,16 +34,44 @@ public class RemoteLocation extends RemoteLocationContext {
   private final String dstPath;
   /** Original path in federation. */
   private final String srcPath;
+  /** Priority for this location. */
+  private final int priority;
+  /** Is this location read only. */
+  private final boolean readOnly;
+
+  /**
+   * Create a new remote location with dest path only.
+   *
+   * @param nsId  Destination namespace.
+   * @param dPath Path in the destination namespace.
+   */
+  public RemoteLocation(String nsId, String dPath) {
+    this(nsId, dPath, null);
+  }
 
   /**
    * Create a new remote location.
    *
-   * @param nsId Destination namespace.
+   * @param nsId  Destination namespace.
    * @param dPath Path in the destination namespace.
    * @param sPath Path in the federated level.
    */
   public RemoteLocation(String nsId, String dPath, String sPath) {
     this(nsId, null, dPath, sPath);
+  }
+
+  /**
+   * Create a remote location point with priority and read-only attributes.
+   *
+   * @param nsId     Destination namespace.
+   * @param dPath    Path in the destination namespace.
+   * @param sPath    Path in the federated level
+   * @param priority Priority for this location.
+   * @param readOnly Is this location read only.
+   */
+  public RemoteLocation(String nsId, String dPath, String sPath, int priority,
+                        boolean readOnly) {
+    this(nsId, null, dPath, sPath, priority, readOnly);
   }
 
   /**
@@ -55,10 +84,33 @@ public class RemoteLocation extends RemoteLocationContext {
    * @param sPath Path in the federated level
    */
   public RemoteLocation(String nsId, String nnId, String dPath, String sPath) {
+    String[] nsMsg = nsId.split(":", 3);
+    this.nameserviceId = nsMsg[0];
+    this.namenodeId = null;
+    this.dstPath = dPath;
+    this.srcPath = sPath;
+    this.priority = nsMsg.length >= 2 ? Integer.parseInt(nsMsg[1]) : 0;
+    this.readOnly = nsMsg.length >= 3 && Boolean.parseBoolean(nsMsg[2]);
+  }
+
+  /**
+   * Create a remote location point with priority and read-only attributes.
+   *
+   * @param nsId     Destination namespace.
+   * @param nnId     Destination namenode.
+   * @param dPath    Path in the destination namespace.
+   * @param sPath    Path in the federated level
+   * @param priority Priority for this location.
+   * @param readOnly Is this location read only.
+   */
+  public RemoteLocation(String nsId, String nnId, String dPath, String sPath,
+                        int priority, boolean readOnly) {
     this.nameserviceId = nsId;
     this.namenodeId = nnId;
     this.dstPath = dPath;
     this.srcPath = sPath;
+    this.priority = priority;
+    this.readOnly = readOnly;
   }
 
   @Override
@@ -80,8 +132,55 @@ public class RemoteLocation extends RemoteLocationContext {
     return this.srcPath;
   }
 
+  public int getPriority() {
+    return this.priority;
+  }
+
+  public boolean isReadOnly() {
+    return this.readOnly;
+  }
+
   @Override
   public String toString() {
-    return getNameserviceId() + "->" + this.dstPath;
+    return getNameserviceId() + "->" + this.dstPath + "[Priority:" +
+        Integer.toString(this.priority) + "]" + "[ReadOnly:" +
+        Boolean.toString(this.readOnly) + "]";
+  }
+
+  @Override
+  public int hashCode() {
+    return new HashCodeBuilder(17, 31)
+        .append(getNameserviceId())
+        .append(getDest())
+        .append(getPriority())
+        .append(isReadOnly())
+        .toHashCode();
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (obj instanceof RemoteLocation) {
+      RemoteLocation other = (RemoteLocation) obj;
+      return this.getNameserviceId().equals(other.getNameserviceId()) &&
+          this.getDest().equals(other.getDest()) &&
+          this.getPriority() == other.getPriority() &&
+          this.isReadOnly() == other.isReadOnly();
+    }
+    return false;
+  }
+
+  @Override
+  public int compareTo(RemoteLocationContext info) {
+    if (info instanceof RemoteLocation) {
+      RemoteLocation other = (RemoteLocation) info;
+      int ret = Integer.compare(this.getPriority(), other.getPriority());
+      if (ret == 0) {
+        return super.compareTo(info);
+      } else {
+        return ret;
+      }
+    } else {
+      return super.compareTo(info);
+    }
   }
 }

@@ -427,7 +427,7 @@ public class RouterRpcServer extends AbstractService implements ClientProtocol,
   }
 
   /**
-   * Get the active namenode resolver
+   * Get the active namenode resolver.
    *
    * @return Active namenode resolver.
    */
@@ -1539,11 +1539,13 @@ public class RouterRpcServer extends AbstractService implements ClientProtocol,
         }
       }
 
-      // Filter disabled subclusters
+      // Filter disabled subclusters and readonly namespace
       Set<String> disabled = namenodeResolver.getDisabledNamespaces();
       List<RemoteLocation> locs = new ArrayList<>();
       for (RemoteLocation loc : location.getDestinations()) {
-        if (!disabled.contains(loc.getNameserviceId())) {
+        if (!disabled.contains(loc.getNameserviceId()) &&
+            !(opCategory.get() == OperationCategory.WRITE &&
+                loc.isReadOnly())) {
           locs.add(loc);
         }
       }

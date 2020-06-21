@@ -29,7 +29,8 @@ public enum DestinationOrder {
   LOCAL, // Local first
   RANDOM, // Random order
   HASH_ALL, // Follow consistent hashing
-  SPACE; // Available space based order
+  SPACE, // Available space based order
+  PRIORITY; // Priority based hash sorting
 
   /** Approaches that write folders in all subclusters. */
   public static final EnumSet<DestinationOrder> FOLDER_ALL = EnumSet.of(

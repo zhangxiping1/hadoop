@@ -107,7 +107,10 @@ public class MountTablePBImpl extends MountTable implements PBRecord {
     for (RemoteLocationProto dest : destList) {
       String nsId = dest.getNameserviceId();
       String path = dest.getPath();
-      RemoteLocation loc = new RemoteLocation(nsId, path, getSourcePath());
+      int priority = dest.getPriority();
+      boolean readOnly = dest.getReadOnly();
+      RemoteLocation loc =
+          new RemoteLocation(nsId, path, getSourcePath(), priority, readOnly);
       ret.add(loc);
     }
     return ret;
@@ -122,8 +125,12 @@ public class MountTablePBImpl extends MountTable implements PBRecord {
           RemoteLocationProto.newBuilder();
       String nsId = dest.getNameserviceId();
       String path = dest.getDest();
+      int priority = dest.getPriority();
+      boolean readOnly = dest.isReadOnly();
       itemBuilder.setNameserviceId(nsId);
       itemBuilder.setPath(path);
+      itemBuilder.setPriority(priority);
+      itemBuilder.setReadOnly(readOnly);
       RemoteLocationProto item = itemBuilder.build();
       builder.addDestinations(item);
     }
@@ -131,20 +138,23 @@ public class MountTablePBImpl extends MountTable implements PBRecord {
 
   @Override
   public boolean addDestination(String nsId, String path) {
+    RemoteLocation newLoc = new RemoteLocation(nsId, path);
     // Check if the location is already there
     List<RemoteLocation> dests = getDestinations();
     for (RemoteLocation dest : dests) {
-      if (dest.getNameserviceId().equals(nsId) && dest.getDest().equals(path)) {
+      if (dest.getNameserviceId().equals(newLoc.getNameserviceId()) &&
+          dest.getDest().equals(newLoc.getDest())) {
         return false;
       }
     }
 
     // Add it to the existing list
     Builder builder = this.translator.getBuilder();
-    RemoteLocationProto.Builder itemBuilder =
-        RemoteLocationProto.newBuilder();
-    itemBuilder.setNameserviceId(nsId);
-    itemBuilder.setPath(path);
+    RemoteLocationProto.Builder itemBuilder = RemoteLocationProto.newBuilder();
+    itemBuilder.setNameserviceId(newLoc.getNameserviceId());
+    itemBuilder.setPath(newLoc.getDest());
+    itemBuilder.setPriority(newLoc.getPriority());
+    itemBuilder.setReadOnly(newLoc.isReadOnly());
     RemoteLocationProto item = itemBuilder.build();
     builder.addDestinations(item);
     return true;
@@ -343,6 +353,8 @@ public class MountTablePBImpl extends MountTable implements PBRecord {
       return DestinationOrder.HASH_ALL;
     case SPACE:
       return DestinationOrder.SPACE;
+    case PRIORITY:
+      return DestinationOrder.PRIORITY;
     default:
       return DestinationOrder.HASH;
     }
@@ -358,6 +370,8 @@ public class MountTablePBImpl extends MountTable implements PBRecord {
       return DestOrder.HASH_ALL;
     case SPACE:
       return DestOrder.SPACE;
+    case PRIORITY:
+      return DestOrder.PRIORITY;
     default:
       return DestOrder.HASH;
     }

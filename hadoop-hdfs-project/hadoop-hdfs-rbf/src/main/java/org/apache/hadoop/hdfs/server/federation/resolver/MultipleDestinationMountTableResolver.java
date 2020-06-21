@@ -27,6 +27,7 @@ import org.apache.hadoop.hdfs.server.federation.resolver.order.HashFirstResolver
 import org.apache.hadoop.hdfs.server.federation.resolver.order.HashResolver;
 import org.apache.hadoop.hdfs.server.federation.resolver.order.LocalResolver;
 import org.apache.hadoop.hdfs.server.federation.resolver.order.OrderedResolver;
+import org.apache.hadoop.hdfs.server.federation.resolver.order.PriorityResolver;
 import org.apache.hadoop.hdfs.server.federation.resolver.order.RandomResolver;
 import org.apache.hadoop.hdfs.server.federation.router.Router;
 import org.slf4j.Logger;
@@ -74,6 +75,7 @@ public class MultipleDestinationMountTableResolver extends MountTableResolver {
     super(conf, router);
 
     // Initialize the ordered resolvers
+    addResolver(DestinationOrder.PRIORITY, new PriorityResolver());
     addResolver(DestinationOrder.HASH, new HashFirstResolver());
     addResolver(DestinationOrder.LOCAL, new LocalResolver(conf, router));
     addResolver(DestinationOrder.RANDOM, new RandomResolver());

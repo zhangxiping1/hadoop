@@ -145,13 +145,18 @@ public class RouterAdmin extends Configured implements Tool {
       return usage.toString();
     }
     if (cmd.equals("-add")) {
-      return "\t[-add <source> <nameservice1, nameservice2, ...> <destination> "
+      return "\t[-add <source>"
+          + " <nameservice1[:<priority>:<readonly true|false>],"
+          + " nameservice2[:<priority>:<readonly true|false>], ...>"
+          + " <destination> "
           + "[-readonly] [-faulttolerant] "
           + "[-order HASH|LOCAL|RANDOM|HASH_ALL|SPACE] "
           + "-owner <owner> -group <group> -mode <mode>]";
     } else if (cmd.equals("-update")) {
       return "\t[-update <source>"
-          + " [<nameservice1, nameservice2, ...> <destination>] "
+          +" [<nameservice1[:<priority>:<readonly true|false>],"
+          + " nameservice2[:<priority>:<readonly true|false>], ...>"
+          + " <destination>] "
           + "[-readonly true|false] [-faulttolerant true|false] "
           + "[-order HASH|LOCAL|RANDOM|HASH_ALL|SPACE] "
           + "-owner <owner> -group <group> -mode <mode>]";
@@ -832,8 +837,9 @@ public class RouterAdmin extends Configured implements Tool {
         if (destBuilder.length() > 0) {
           destBuilder.append(",");
         }
-        destBuilder.append(String.format("%s->%s", location.getNameserviceId(),
-            location.getDest()));
+        destBuilder.append(String.format("%s->%s(Priority:%d,Readonly:%b)",
+            location.getNameserviceId(), location.getDest(),
+            location.getPriority(), location.isReadOnly()));
       }
       System.out.print(String.format("%-25s %-25s", entry.getSourcePath(),
           destBuilder.toString()));

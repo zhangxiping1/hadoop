@@ -121,6 +121,8 @@ message NamenodeHeartbeatResponseProto {
 message RemoteLocationProto {
   optional string nameserviceId = 1;
   optional string path = 2;
+  optional int32 priority = 3 [default = 0];
+  optional bool readOnly = 4 [default = false];
 }
 
 message MountTableRecordProto {
@@ -136,6 +138,7 @@ message MountTableRecordProto {
     RANDOM = 2;
     HASH_ALL = 3;
     SPACE = 4;
+    PRIORITY = 5;
   }
   optional DestOrder destOrder = 6 [default = HASH];
 

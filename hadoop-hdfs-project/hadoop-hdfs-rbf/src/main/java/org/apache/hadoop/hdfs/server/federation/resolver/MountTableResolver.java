@@ -87,7 +87,7 @@ public class MountTableResolver
 
   /** If the tree has been initialized. */
   private boolean init = false;
-  /** If the mount table is manually disabled*/
+  /** If the mount table is manually disabled. */
   private boolean disabled = false;
   /** Path -> Remote HDFS location. */
   private final TreeMap<String, MountTable> tree = new TreeMap<>();
@@ -558,14 +558,14 @@ public class MountTableResolver
 
     List<RemoteLocation> locations = new LinkedList<>();
     for (RemoteLocation oneDst : dests) {
-      String nsId = oneDst.getNameserviceId();
-      String dest = oneDst.getDest();
-      String newPath = dest;
+      String newPath = oneDst.getDest();
       if (!newPath.endsWith(Path.SEPARATOR) && !remainingPath.isEmpty()) {
         newPath += Path.SEPARATOR;
       }
       newPath += remainingPath;
-      RemoteLocation remoteLocation = new RemoteLocation(nsId, newPath, path);
+      RemoteLocation remoteLocation =
+          new RemoteLocation(oneDst.getNameserviceId(), newPath, path,
+              oneDst.getPriority(), oneDst.isReadOnly());
       locations.add(remoteLocation);
     }
     DestinationOrder order = entry.getDestOrder();
