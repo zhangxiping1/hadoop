@@ -568,6 +568,7 @@ public class MountTableResolver
               oneDst.getPriority(), oneDst.isReadOnly());
       locations.add(remoteLocation);
     }
+    locations.sort(Collections.reverseOrder());
     DestinationOrder order = entry.getDestOrder();
     return new PathLocation(srcPath, locations, order);
   }
