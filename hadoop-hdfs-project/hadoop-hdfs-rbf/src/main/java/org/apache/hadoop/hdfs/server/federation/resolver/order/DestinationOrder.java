@@ -36,5 +36,6 @@ public enum DestinationOrder {
   public static final EnumSet<DestinationOrder> FOLDER_ALL = EnumSet.of(
       HASH_ALL,
       RANDOM,
-      SPACE);
+      SPACE,
+      PRIORITY);
 }
