@@ -288,7 +288,7 @@ public class NamenodeHeartbeatService extends PeriodicService {
       }
 
       // Read the stats from JMX (optional)
-      updateJMXParameters(webAddress, report);
+      //updateJMXParameters(webAddress, report);
 
       if (localTarget != null) {
         // Try to get the HA status
