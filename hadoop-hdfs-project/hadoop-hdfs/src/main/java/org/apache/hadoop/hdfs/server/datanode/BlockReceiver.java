@@ -64,7 +64,7 @@ import org.apache.htrace.core.Tracer;
 import static org.apache.hadoop.io.nativeio.NativeIO.POSIX.POSIX_FADV_DONTNEED;
 import static org.apache.hadoop.io.nativeio.NativeIO.POSIX.SYNC_FILE_RANGE_WRITE;
 
-import com.google.common.annotations.VisibleForTesting;
+import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 
 /** A class that receives a block and writes to its own disk, meanwhile
@@ -409,7 +409,7 @@ class BlockReceiver implements Closeable {
    * Flush block data and metadata files to disk.
    * @throws IOException
    */
-  void flushOrSync(boolean isSync) throws IOException {
+  void flushOrSync(boolean isSync, long seqno) throws IOException {
     long flushTotalNanos = 0;
     long begin = Time.monotonicNow();
     if (checksumOut != null) {
@@ -448,7 +448,8 @@ class BlockReceiver implements Closeable {
       LOG.warn("Slow flushOrSync took " + duration + "ms (threshold="
           + datanodeSlowLogThresholdMs + "ms), isSync:" + isSync + ", flushTotalNanos="
           + flushTotalNanos + "ns, volume=" + getVolumeBaseUri()
-          + ", blockId=" + replicaInfo.getBlockId());
+          + ", blockId=" + replicaInfo.getBlockId()
+          + ", seqno=" + seqno);
     }
   }
 
@@ -536,10 +537,9 @@ class BlockReceiver implements Closeable {
     packetReceiver.receiveNextPacket(in);
 
     PacketHeader header = packetReceiver.getHeader();
-    if (LOG.isDebugEnabled()){
-      LOG.debug("Receiving one packet for block " + block +
-                ": " + header);
-    }
+    long seqno = header.getSeqno();
+    LOG.debug("Receiving one packet for block {} seqno:{} header:{} ", block,
+        seqno, header);
 
     // Sanity check the header
     if (header.getOffsetInBlock() > replicaInfo.getNumBytes()) {
@@ -555,7 +555,6 @@ class BlockReceiver implements Closeable {
     }
 
     long offsetInBlock = header.getOffsetInBlock();
-    long seqno = header.getSeqno();
     boolean lastPacketInBlock = header.isLastPacketInBlock();
     final int len = header.getDataLen();
     boolean syncBlock = header.getSyncBlock();
@@ -606,7 +605,8 @@ class BlockReceiver implements Closeable {
           LOG.warn("Slow BlockReceiver write packet to mirror took " + duration
               + "ms (threshold=" + datanodeSlowLogThresholdMs + "ms), "
               + "downstream DNs=" + Arrays.toString(downstreamDNs)
-              + ", blockId=" + replicaInfo.getBlockId());
+              + ", blockId=" + replicaInfo.getBlockId()
+              + ", seqno=" + seqno);
         }
       } catch (IOException e) {
         handleMirrorOutError(e);
@@ -622,7 +622,7 @@ class BlockReceiver implements Closeable {
       }
       // sync block if requested
       if (syncBlock) {
-        flushOrSync(true);
+        flushOrSync(true, seqno);
       }
     } else {
       final int checksumLen = diskChecksum.getChecksumSize(len);
@@ -741,7 +741,8 @@ class BlockReceiver implements Closeable {
             LOG.warn("Slow BlockReceiver write data to disk cost:" + duration
                 + "ms (threshold=" + datanodeSlowLogThresholdMs + "ms), "
                 + "volume=" + getVolumeBaseUri()
-                + ", blockId=" + replicaInfo.getBlockId());
+                + ", blockId=" + replicaInfo.getBlockId()
+                + ", seqno=" + seqno);
           }
 
           if (duration > maxWriteToDiskMs) {
@@ -814,14 +815,14 @@ class BlockReceiver implements Closeable {
           }
 
           /// flush entire packet, sync if requested
-          flushOrSync(syncBlock);
+          flushOrSync(syncBlock, seqno);
           
           replicaInfo.setLastChecksumAndDataLen(offsetInBlock, lastCrc);
 
           datanode.metrics.incrBytesWritten(len);
           datanode.metrics.incrTotalWriteTime(duration);
 
-          manageWriterOsCache(offsetInBlock);
+          manageWriterOsCache(offsetInBlock, seqno);
         }
       } catch (IOException iex) {
         // Volume error check moved to FileIoProvider
@@ -887,7 +888,7 @@ class BlockReceiver implements Closeable {
     return Arrays.copyOfRange(array, end - size, end);
   }
 
-  private void manageWriterOsCache(long offsetInBlock) {
+  private void manageWriterOsCache(long offsetInBlock, long seqno) {
     try {
       if (streams.getOutFd() != null &&
           offsetInBlock > lastCacheManagementOffset + CACHE_DROP_LAG_BYTES) {
@@ -934,7 +935,8 @@ class BlockReceiver implements Closeable {
           LOG.warn("Slow manageWriterOsCache took " + duration
               + "ms (threshold=" + datanodeSlowLogThresholdMs
               + "ms), volume=" + getVolumeBaseUri()
-              + ", blockId=" + replicaInfo.getBlockId());
+              + ", blockId=" + replicaInfo.getBlockId()
+              + ", seqno=" + seqno);
         }
       }
     } catch (Throwable t) {
@@ -1646,7 +1648,8 @@ class BlockReceiver implements Closeable {
             + "ms (threshold=" + datanodeSlowLogThresholdMs + "ms), " + myString
             + ", replyAck=" + replyAck
             + ", downstream DNs=" + Arrays.toString(downstreamDNs)
-            + ", blockId=" + replicaInfo.getBlockId());
+            + ", blockId=" + replicaInfo.getBlockId()
+            + ", seqno=" + seqno);
       } else if (LOG.isDebugEnabled()) {
         LOG.debug(myString + ", replyAck=" + replyAck);
       }

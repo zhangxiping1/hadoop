@@ -20,6 +20,8 @@ package org.apache.hadoop.hdfs.server.federation.router;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
+import org.apache.hadoop.hdfs.server.federation.fairness.NoRouterRpcFairnessPolicyController;
+import org.apache.hadoop.hdfs.server.federation.fairness.RouterRpcFairnessPolicyController;
 import org.apache.hadoop.hdfs.server.federation.metrics.FederationRPCPerformanceMonitor;
 import org.apache.hadoop.hdfs.server.federation.resolver.ActiveNamenodeResolver;
 import org.apache.hadoop.hdfs.server.federation.resolver.FileSubclusterResolver;
@@ -277,6 +279,10 @@ public class RBFConfigKeys extends CommonConfigurationKeysPublic {
   public static final String DFS_ROUTER_ADMIN_MAX_COMPONENT_LENGTH_KEY =
       FEDERATION_ROUTER_PREFIX + "fs-limits.max-component-length";
   public static final int DFS_ROUTER_ADMIN_MAX_COMPONENT_LENGTH_DEFAULT = 0;
+  public static final String DFS_ROUTER_ADMIN_MOUNT_CHECK_ENABLE =
+      FEDERATION_ROUTER_PREFIX + "admin.mount.check.enable";
+  public static final boolean DFS_ROUTER_ADMIN_MOUNT_CHECK_ENABLE_DEFAULT =
+      false;
 
   // HDFS Router-based federation web
   public static final String DFS_ROUTER_HTTP_ENABLE =
@@ -308,9 +314,9 @@ public class RBFConfigKeys extends CommonConfigurationKeysPublic {
   public static final String DFS_ROUTER_QUOTA_ENABLE =
       FEDERATION_ROUTER_PREFIX + "quota.enable";
   public static final boolean DFS_ROUTER_QUOTA_ENABLED_DEFAULT = false;
-  public static final String DFS_ROUTER_QUOTA_CACHE_UPATE_INTERVAL =
+  public static final String DFS_ROUTER_QUOTA_CACHE_UPDATE_INTERVAL =
       FEDERATION_ROUTER_PREFIX + "quota-cache.update.interval";
-  public static final long DFS_ROUTER_QUOTA_CACHE_UPATE_INTERVAL_DEFAULT =
+  public static final long DFS_ROUTER_QUOTA_CACHE_UPDATE_INTERVAL_DEFAULT =
       60000;
 
   // HDFS Router security
@@ -330,4 +336,16 @@ public class RBFConfigKeys extends CommonConfigurationKeysPublic {
   public static final Class<? extends AbstractDelegationTokenSecretManager>
       DFS_ROUTER_DELEGATION_TOKEN_DRIVER_CLASS_DEFAULT =
       ZKDelegationTokenSecretManagerImpl.class;
+
+  // HDFS Router fairness
+  public static final String FEDERATION_ROUTER_FAIRNESS_PREFIX =
+      FEDERATION_ROUTER_PREFIX + "fairness.";
+  public static final String
+      DFS_ROUTER_FAIRNESS_POLICY_CONTROLLER_CLASS =
+      FEDERATION_ROUTER_FAIRNESS_PREFIX + "policy.controller.class";
+  public static final Class<? extends RouterRpcFairnessPolicyController>
+      DFS_ROUTER_FAIRNESS_POLICY_CONTROLLER_CLASS_DEFAULT =
+      NoRouterRpcFairnessPolicyController.class;
+  public static final String DFS_ROUTER_FAIR_HANDLER_COUNT_KEY_PREFIX =
+      FEDERATION_ROUTER_FAIRNESS_PREFIX + "handler.count.";
 }

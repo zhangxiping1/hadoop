@@ -20,9 +20,9 @@ package org.apache.hadoop.hdfs.server.namenode;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.util.StringUtils;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
+import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hadoop.thirdparty.com.google.common.base.Joiner;
+import org.apache.hadoop.thirdparty.com.google.common.base.Preconditions;
 import org.apache.hadoop.thirdparty.protobuf.InvalidProtocolBufferException;
 
 import org.apache.hadoop.HadoopIllegalArgumentException;
@@ -187,7 +187,6 @@ public class FSDirectory implements Closeable {
   private boolean posixAclInheritanceEnabled;
   private final boolean xattrsEnabled;
   private final int xattrMaxSize;
-  private final boolean snapshotDeletionOrdered;
 
   // precision of access times.
   private final long accessTimePrecision;
@@ -354,12 +353,6 @@ public class FSDirectory implements Closeable {
         + " hard limit " + DFSConfigKeys.DFS_NAMENODE_MAX_XATTR_SIZE_HARD_LIMIT
         + ": (%s).", DFSConfigKeys.DFS_NAMENODE_MAX_XATTR_SIZE_KEY);
 
-    this.snapshotDeletionOrdered =
-        conf.getBoolean(DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DELETION_ORDERED,
-            DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DELETION_ORDERED_DEFAULT);
-    LOG.info("{} = {}", DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DELETION_ORDERED,
-        snapshotDeletionOrdered);
-
     this.accessTimePrecision = conf.getLong(
         DFS_NAMENODE_ACCESSTIME_PRECISION_KEY,
         DFS_NAMENODE_ACCESSTIME_PRECISION_DEFAULT);
@@ -516,6 +509,14 @@ public class FSDirectory implements Closeable {
   }
 
   /**
+   * Indicates whether the image loading is complete or not.
+   * @return true if image loading is complete, false otherwise
+   */
+  public boolean isImageLoaded() {
+    return namesystem.isImageLoaded();
+  }
+
+  /**
    * Parse configuration setting dfs.namenode.protected.directories to
    * retrieve the set of protected directories.
    *
@@ -617,10 +618,6 @@ public class FSDirectory implements Closeable {
     return xattrsEnabled;
   }
   int getXattrMaxSize() { return xattrMaxSize; }
-
-  public boolean isSnapshotDeletionOrdered() {
-    return snapshotDeletionOrdered;
-  }
 
   boolean isAccessTimeSupported() {
     return accessTimePrecision > 0;
@@ -1221,7 +1218,8 @@ public class FSDirectory implements Closeable {
 
     // check existing components in the path
     for(int i = (pos > iip.length() ? iip.length(): pos) - 1; i >= 0; i--) {
-      if (commonAncestor == iip.getINode(i)) {
+      if (commonAncestor == iip.getINode(i)
+          && !commonAncestor.isInLatestSnapshot(iip.getLatestSnapshotId())) {
         // Stop checking for quota when common ancestor is reached
         return;
       }
