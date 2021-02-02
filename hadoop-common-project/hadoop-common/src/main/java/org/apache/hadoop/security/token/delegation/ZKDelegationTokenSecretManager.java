@@ -98,6 +98,8 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
       + "kerberos.keytab";
   public static final String ZK_DTSM_ZK_KERBEROS_PRINCIPAL = ZK_CONF_PREFIX
       + "kerberos.principal";
+  public static final String ZK_DTSM_ZK_SEQ_NUM_START_INDEX = ZK_CONF_PREFIX
+          + "ZKDTSMSeqNumStartIndex";
 
   public static final int ZK_DTSM_ZK_NUM_RETRIES_DEFAULT = 3;
   public static final int ZK_DTSM_ZK_SESSION_TIMEOUT_DEFAULT = 10000;
@@ -135,6 +137,7 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
   private PathChildrenCache tokenCache;
   private ExecutorService listenerThreadPool;
   private final long shutdownTimeout;
+  private final int ZKDTSMSeqNumStartIndex;
 
   public ZKDelegationTokenSecretManager(Configuration conf) {
     super(conf.getLong(DelegationTokenManager.UPDATE_INTERVAL,
@@ -147,6 +150,7 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
             DelegationTokenManager.REMOVAL_SCAN_INTERVAL_DEFAULT) * 1000);
     shutdownTimeout = conf.getLong(ZK_DTSM_ZK_SHUTDOWN_TIMEOUT,
         ZK_DTSM_ZK_SHUTDOWN_TIMEOUT_DEFAULT);
+    ZKDTSMSeqNumStartIndex = conf.getInt(ZK_DTSM_ZK_SEQ_NUM_START_INDEX, 0);
     if (CURATOR_TL.get() != null) {
       zkClient =
           CURATOR_TL.get().usingNamespace(
@@ -321,6 +325,10 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
       delTokSeqCounter = new SharedCount(zkClient, ZK_DTSM_SEQNUM_ROOT, 0);
       if (delTokSeqCounter != null) {
         delTokSeqCounter.start();
+        if(delTokSeqCounter.getCount() < ZKDTSMSeqNumStartIndex) {
+          delTokSeqCounter.setCount(ZKDTSMSeqNumStartIndex);
+          LOG.info("set delTokSeqCounter:"+ZKDTSMSeqNumStartIndex );
+        }
       }
     } catch (Exception e) {
       throw new IOException("Could not start Sequence Counter", e);
