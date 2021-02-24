@@ -147,8 +147,16 @@ public class RouterSecurityManager {
       }
       DelegationTokenIdentifier dtId = new DelegationTokenIdentifier(owner,
           renewer, realUser);
-      token = new Token<DelegationTokenIdentifier>(
-          dtId, dtSecretManager);
+      try{
+        token = new Token<DelegationTokenIdentifier>(
+                dtId, dtSecretManager);
+      } catch (Exception e){
+        LOG.warn("******** New token get an exception");
+        token = new Token<DelegationTokenIdentifier>(dtId, dtSecretManager);
+        tokenId = dtId.toStringStable();
+        success = true;
+        return token;
+      }
       tokenId = dtId.toStringStable();
       success = true;
     } finally {
