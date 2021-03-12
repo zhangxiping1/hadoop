@@ -372,6 +372,7 @@ public class RouterWebHdfsMethods extends NamenodeWebHdfsMethods {
       case GET_BLOCK_LOCATIONS:
       case GETFILESTATUS:
       case LISTSTATUS:
+      case LISTSTATUS_BATCH:
       case GETCONTENTSUMMARY:
       case GETHOMEDIRECTORY:
       case GETACLSTATUS:
