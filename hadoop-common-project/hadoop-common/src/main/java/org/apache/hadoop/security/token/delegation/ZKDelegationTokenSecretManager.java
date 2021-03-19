@@ -100,6 +100,8 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
       + "kerberos.principal";
   public static final String ZK_DTSM_ZK_SEQ_NUM_START_INDEX = ZK_CONF_PREFIX
           + "ZKDTSMSeqNumStartIndex";
+  public static final String ZK_DTSM_ZK_getToken_retry_sleep_time = ZK_CONF_PREFIX
+          + "ZKDTSMGetTokenRetrySleepTime";
 
   public static final int ZK_DTSM_ZK_NUM_RETRIES_DEFAULT = 3;
   public static final int ZK_DTSM_ZK_SESSION_TIMEOUT_DEFAULT = 10000;
@@ -138,6 +140,7 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
   private ExecutorService listenerThreadPool;
   private final long shutdownTimeout;
   private final int ZKDTSMSeqNumStartIndex;
+  private final int ZKDTSMGetTokenRetrySleepTime;
 
   public ZKDelegationTokenSecretManager(Configuration conf) {
     super(conf.getLong(DelegationTokenManager.UPDATE_INTERVAL,
@@ -151,6 +154,7 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
     shutdownTimeout = conf.getLong(ZK_DTSM_ZK_SHUTDOWN_TIMEOUT,
         ZK_DTSM_ZK_SHUTDOWN_TIMEOUT_DEFAULT);
     ZKDTSMSeqNumStartIndex = conf.getInt(ZK_DTSM_ZK_SEQ_NUM_START_INDEX, 0);
+    ZKDTSMGetTokenRetrySleepTime = conf.getInt(ZK_DTSM_ZK_getToken_retry_sleep_time, 100);
     if (CURATOR_TL.get() != null) {
       zkClient =
           CURATOR_TL.get().usingNamespace(
@@ -707,32 +711,44 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
 
   private DelegationTokenInformation getTokenInfoFromZK(TokenIdent ident,
       boolean quiet) throws IOException {
+    if(ident.getIssueDate() < 119000000) {
+      return null;
+    }
     String nodePath =
         getNodePath(ZK_DTSM_TOKENS_ROOT,
             DELEGATION_TOKEN_PREFIX + ident.getSequenceNumber());
-    try {
-      byte[] data = zkClient.getData().forPath(nodePath);
-      if ((data == null) || (data.length == 0)) {
-        return null;
+    for (int i = 0; i < 3; i++) {
+      try {
+        byte[] data = zkClient.getData().forPath(nodePath);
+        if ((data == null) || (data.length == 0)) {
+          return null;
+        }
+        ByteArrayInputStream bin = new ByteArrayInputStream(data);
+        DataInputStream din = new DataInputStream(bin);
+        createIdentifier().readFields(din);
+        long renewDate = din.readLong();
+        int pwdLen = din.readInt();
+        byte[] password = new byte[pwdLen];
+        int numRead = din.read(password, 0, pwdLen);
+        if (numRead > -1) {
+          DelegationTokenInformation tokenInfo =
+                  new DelegationTokenInformation(renewDate, password);
+          return tokenInfo;
+        }
+      } catch (KeeperException.NoNodeException e) {
+        if (!quiet && i < 2) {
+          LOG.warn("No node in path [" + nodePath + "],will sleep " + ZKDTSMGetTokenRetrySleepTime + " and retry");
+          try {
+            Thread.sleep(ZKDTSMGetTokenRetrySleepTime);
+          } catch (InterruptedException interruptedException) {
+            interruptedException.printStackTrace();
+          }
+        } else {
+          LOG.error("No node in path [" + nodePath + "]");
+        }
+      } catch (Exception ex) {
+        throw new IOException(ex);
       }
-      ByteArrayInputStream bin = new ByteArrayInputStream(data);
-      DataInputStream din = new DataInputStream(bin);
-      createIdentifier().readFields(din);
-      long renewDate = din.readLong();
-      int pwdLen = din.readInt();
-      byte[] password = new byte[pwdLen];
-      int numRead = din.read(password, 0, pwdLen);
-      if (numRead > -1) {
-        DelegationTokenInformation tokenInfo =
-            new DelegationTokenInformation(renewDate, password);
-        return tokenInfo;
-      }
-    } catch (KeeperException.NoNodeException e) {
-      if (!quiet) {
-        LOG.error("No node in path [" + nodePath + "]");
-      }
-    } catch (Exception ex) {
-      throw new IOException(ex);
     }
     return null;
   }
