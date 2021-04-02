@@ -632,7 +632,8 @@ extends AbstractDelegationTokenIdentifier>
       while (i.hasNext()) {
         Map.Entry<TokenIdent, DelegationTokenInformation> entry = i.next();
         long renewDate = entry.getValue().getRenewDate();
-        if (renewDate < now) {
+        /** Try to delay cleaning up for half an hour */
+        if (renewDate + 1800000 < now) {
           expiredTokens.add(entry.getKey());
           i.remove();
         }
