@@ -55,6 +55,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.token.Token;
 import org.apache.hadoop.security.token.delegation.web.DelegationTokenManager;
+import org.apache.hadoop.util.Time;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.NoNodeException;
@@ -711,7 +712,9 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
 
   private DelegationTokenInformation getTokenInfoFromZK(TokenIdent ident,
       boolean quiet) throws IOException {
-    if(ident.getIssueDate() < 119000000) {
+    long now = Time.now();
+    if (ident.getMaxDate() < now) {
+      LOG.warn("This an expired token,SequenceNumber=" +ident.getSequenceNumber());
       return null;
     }
     String nodePath =
