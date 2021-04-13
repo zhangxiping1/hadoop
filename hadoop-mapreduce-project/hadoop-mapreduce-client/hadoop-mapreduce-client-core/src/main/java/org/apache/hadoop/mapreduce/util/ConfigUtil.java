@@ -21,6 +21,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configuration.DeprecationDelta;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.MRConfig;
 import org.apache.hadoop.mapreduce.MRJobConfig;
@@ -44,6 +45,14 @@ public class ConfigUtil {
     Configuration.addDefaultResource("mapred-site.xml");
     Configuration.addDefaultResource("yarn-default.xml");
     Configuration.addDefaultResource("yarn-site.xml");
+    String azkabanResourceFile = (System.getProperty("AZKABAN_MR_METRICS_FILE") == null) ?
+            System.getenv("AZKABAN_MR_METRICS_FILE") : System.getProperty("AZKABAN_MR_METRICS_FILE");
+    if (azkabanResourceFile != null) {
+      Configuration.addDefaultResource(new Path(azkabanResourceFile));
+    } else {
+      Configuration.addDefaultResource("azkaban.xml");
+    }
+
   }
   
   /**

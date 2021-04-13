@@ -43,22 +43,8 @@ import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
-import java.util.StringTokenizer;
-import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
@@ -292,6 +278,20 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
       }
       return user.getRealUser() != null;
     }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      Resource resource = (Resource) o;
+      return name.equals(resource.name);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(name);
+    }
+
   }
   
   /**
@@ -330,8 +330,8 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
    * List of default Resources. Resources are loaded in the order of the list 
    * entries
    */
-  private static final CopyOnWriteArrayList<String> defaultResources =
-    new CopyOnWriteArrayList<String>();
+  private static final CopyOnWriteArrayList<Resource> defaultResources =
+    new CopyOnWriteArrayList<Resource>();
 
   private static final Map<ClassLoader, Map<String, WeakReference<Class<?>>>>
     CACHE_CLASSES = new WeakHashMap<ClassLoader, Map<String, WeakReference<Class<?>>>>();
@@ -888,10 +888,27 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
    * @param name file name. File should be present in the classpath.
    */
   public static synchronized void addDefaultResource(String name) {
-    if(!defaultResources.contains(name)) {
-      defaultResources.add(name);
-      for(Configuration conf : REGISTRY.keySet()) {
-        if(conf.loadDefaults) {
+    if (name != null) {
+      addDefaultResource(new Resource(name, false));
+    }
+  }
+
+  public static synchronized void addDefaultResource(Path file) {
+    if (file == null) {
+      return;
+    }
+    Resource resource = new Resource(file, false);
+    addDefaultResource(resource);
+  }
+
+  public static synchronized void addDefaultResource(Resource resource) {
+    if (resource == null) {
+      return;
+    }
+    if (!defaultResources.contains(resource)) {
+      defaultResources.add(resource);
+      for (Configuration conf : REGISTRY.keySet()) {
+        if (conf.loadDefaults) {
           conf.reloadConfiguration();
         }
       }
@@ -2991,8 +3008,8 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
                              ArrayList<Resource> resources,
                              boolean quiet) {
     if(loadDefaults) {
-      for (String resource : defaultResources) {
-        loadResource(properties, new Resource(resource, false), quiet);
+      for (Resource resource : defaultResources) {
+        loadResource(properties, resource, quiet);
       }
     }
     
