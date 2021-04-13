@@ -27,6 +27,8 @@ import org.apache.hadoop.hdfs.server.namenode.FsImageProto.INodeSection.INodeSym
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 
 /**
@@ -151,13 +153,13 @@ public class PBImageDelimitedTextWriter extends PBImageTextWriter {
   }
 
   @Override
-  public String getEntry(String parent, INode inode) {
+  public String getEntry(String parent, INode inode) throws UnsupportedEncodingException {
     OutputEntryBuilder entryBuilder =
         new OutputEntryBuilder(this, inode);
 
     String inodeName = inode.getName().toStringUtf8();
     Path path = new Path(parent.isEmpty() ? "/" : parent,
-      inodeName.isEmpty() ? "/" : inodeName);
+      inodeName.isEmpty() ? "/" : URLEncoder.encode(inodeName, "UTF-8"));
     entryBuilder.setPath(path);
 
     return entryBuilder.build();

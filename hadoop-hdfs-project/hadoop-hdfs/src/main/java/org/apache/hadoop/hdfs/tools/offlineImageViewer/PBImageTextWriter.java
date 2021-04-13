@@ -546,7 +546,7 @@ abstract class PBImageTextWriter implements Closeable {
    * @param parent the path of parent directory
    * @param inode the INode object to output.
    */
-  abstract protected String getEntry(String parent, INode inode);
+  abstract protected String getEntry(String parent, INode inode) throws UnsupportedEncodingException;
 
   /**
    * Get text output for the header line.
