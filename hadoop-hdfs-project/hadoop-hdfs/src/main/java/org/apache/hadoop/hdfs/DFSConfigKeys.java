@@ -568,6 +568,10 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
   public static final int     DFS_NAMENODE_MAX_XATTR_SIZE_DEFAULT = 16384;
   public static final int     DFS_NAMENODE_MAX_XATTR_SIZE_HARD_LIMIT = 32768;
 
+  public static final String DFS_NAMENODE_RECYCLE_BIN_ENABLED_KEY =
+          "dfs.namenode.recycle.bin.enabled";
+  public static final boolean DFS_NAMENODE_RECYCLE_BIN_ENABLED_DEFAULT = false;
+
   public static final String  DFS_NAMENODE_LEASE_RECHECK_INTERVAL_MS_KEY =
       "dfs.namenode.lease-recheck-interval-ms";
   public static final long    DFS_NAMENODE_LEASE_RECHECK_INTERVAL_MS_DEFAULT =

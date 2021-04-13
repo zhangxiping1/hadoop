@@ -19,16 +19,8 @@ package org.apache.hadoop.hdfs.server.namenode;
 
 import static org.apache.hadoop.fs.CommonConfigurationKeys.IPC_MAXIMUM_DATA_LENGTH;
 import static org.apache.hadoop.fs.CommonConfigurationKeys.IPC_MAXIMUM_DATA_LENGTH_DEFAULT;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HANDLER_COUNT_DEFAULT;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_HANDLER_COUNT_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_LIFELINE_HANDLER_COUNT_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_LIFELINE_HANDLER_RATIO_DEFAULT;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_LIFELINE_HANDLER_RATIO_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SERVICE_HANDLER_COUNT_DEFAULT;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SERVICE_HANDLER_COUNT_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_AUXILIARY_KEY;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_STATE_CONTEXT_ENABLED_DEFAULT;
-import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_STATE_CONTEXT_ENABLED_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.*;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RECYCLE_BIN_ENABLED_DEFAULT;
 import static org.apache.hadoop.hdfs.server.common.HdfsServerConstants.MAX_PATH_DEPTH;
 import static org.apache.hadoop.hdfs.server.common.HdfsServerConstants.MAX_PATH_LENGTH;
 import static org.apache.hadoop.util.Time.now;
@@ -52,28 +44,14 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.ReconfigurationTaskStatus;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
+import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.BatchedRemoteIterator.BatchedEntries;
 import org.apache.hadoop.hdfs.AddBlockFlag;
-import org.apache.hadoop.fs.CacheFlag;
-import org.apache.hadoop.fs.CommonConfigurationKeys;
-import org.apache.hadoop.fs.ContentSummary;
-import org.apache.hadoop.fs.CreateFlag;
-import org.apache.hadoop.fs.FileAlreadyExistsException;
-import org.apache.hadoop.fs.FsServerDefaults;
-import org.apache.hadoop.fs.InvalidPathException;
-import org.apache.hadoop.fs.Options;
-import org.apache.hadoop.fs.ParentNotDirectoryException;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.StorageType;
-import org.apache.hadoop.fs.UnresolvedLinkException;
-import org.apache.hadoop.fs.XAttr;
-import org.apache.hadoop.fs.XAttrSetFlag;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.PermissionStatus;
-import org.apache.hadoop.fs.QuotaUsage;
 import org.apache.hadoop.ha.HAServiceStatus;
 import org.apache.hadoop.ha.HealthCheckFailedException;
 import org.apache.hadoop.ha.ServiceFailedException;
@@ -222,12 +200,14 @@ import org.apache.hadoop.tracing.SpanReceiverInfo;
 import org.apache.hadoop.tracing.TraceAdminPB.TraceAdminService;
 import org.apache.hadoop.tracing.TraceAdminProtocolPB;
 import org.apache.hadoop.tracing.TraceAdminProtocolServerSideTranslatorPB;
+import org.apache.hadoop.util.Time;
 import org.apache.hadoop.util.VersionInfo;
 import org.apache.hadoop.util.VersionUtil;
 import org.slf4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.thirdparty.protobuf.BlockingService;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 
@@ -243,6 +223,7 @@ public class NameNodeRpcServer implements NamenodeProtocols {
   private static final Logger stateChangeLog = NameNode.stateChangeLog;
   private static final Logger blockStateChangeLog = NameNode
       .blockStateChangeLog;
+  public static final Logger deleteLog = LoggerFactory.getLogger("DELETE");
   
   // Dependencies from other parts of NN.
   protected final FSNamesystem namesystem;
@@ -252,6 +233,8 @@ public class NameNodeRpcServer implements NamenodeProtocols {
   private final RetryCache retryCache;
 
   private final boolean serviceAuthEnabled;
+
+  private final boolean recycleBinEnabled;
 
   /** The RPC server that listens to requests from DataNodes */
   private final RPC.Server serviceRpcServer;
@@ -276,6 +259,8 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     this.retryCache = namesystem.getRetryCache();
     this.metrics = NameNode.getNameNodeMetrics();
 
+    this.recycleBinEnabled = conf.getBoolean(DFS_NAMENODE_RECYCLE_BIN_ENABLED_KEY,
+            DFS_NAMENODE_RECYCLE_BIN_ENABLED_DEFAULT);
     int handlerCount = 
       conf.getInt(DFS_NAMENODE_HANDLER_COUNT_KEY, 
                   DFS_NAMENODE_HANDLER_COUNT_DEFAULT);
@@ -1047,6 +1032,7 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     }
     if (ret) {
       metrics.incrFilesRenamed();
+      deleteLog.info("path="+src+"   cmd=rename   ugi="+Server.getRemoteUser().getShortUserName()+"   ip="+Server.getRemoteIp());
     }
     return ret;
   }
@@ -1092,6 +1078,7 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     } finally {
       RetryCache.setState(cacheEntry, success);
     }
+    deleteLog.info("path="+src+"   cmd=rename   ugi="+Server.getRemoteUser().getShortUserName()+"   ip="+Server.getRemoteIp());
     metrics.incrFilesRenamed();
   }
 
@@ -1112,6 +1099,15 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     }
   }
 
+  private static String currentUserTrash;
+  static {
+    try {
+      currentUserTrash = "/user/"+UserGroupInformation.getLoginUser().getShortUserName()+"/.Trash/Current/";
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
   @Override // ClientProtocol
   public boolean delete(String src, boolean recursive) throws IOException {
     checkNNStartup();
@@ -1126,14 +1122,78 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     }
 
     boolean ret = false;
+    IOException cause = null;
     try {
-      ret = namesystem.delete(src, recursive, cacheEntry != null);
+      if( !recycleBinEnabled ||src.contains(".Trash") || src.startsWith("/tmp") ||
+              src.contains("hive-staging")  || src.contains(".sparkStaging")){
+        if (stateChangeLog.isDebugEnabled()) {
+          stateChangeLog.debug("*DIR* Namenode.delete: src=" + src + ", recursive=" + recursive);
+        }
+        ret = namesystem.delete(src, recursive, cacheEntry != null);
+        if (ret)
+          metrics.incrDeleteFileOps();
+        return ret;
+      } else {
+        deleteLog.info("path="+src+"   cmd=delete   ugi="+Server.getRemoteUser().getShortUserName()+"   ip="+Server.getRemoteIp());
+        String dstTrash= currentUserTrash + getRemoteUser().getShortUserName();
+        Path srcPath = new Path(src);
+        String dstTrashParent = dstTrash + srcPath.getParent().toString();
+        String  dstString = dstTrash + src;
+        String  tmpDstString = dstString;
+        if(stateChangeLog.isDebugEnabled()) {
+          stateChangeLog.debug("*DIR* NameNode.rename: " + src + " to " + dstTrash);
+        }
+        FsPermission permission = new FsPermission(FsAction.ALL, FsAction.ALL, FsAction.ALL);
+        String currentUser = UserGroupInformation.getCurrentUser().getShortUserName();
+        PermissionStatus ps = new PermissionStatus(currentUser, null, permission);
+
+        // try twice, in case checkpoint between the mkdirs() & rename()
+        for (int i = 0; i < 2; i++) {
+          try {
+            if(!namesystem.mkdirs(dstTrashParent,ps,true)){
+              LOG.warn("Can't create(mkdir) trash directory: " + dstTrashParent);
+              throw new IOException(String.format("Can't create(mkdir) trash directory: %s; mkdirs return false", dstTrashParent));
+            }
+          } catch (IOException e) {
+            LOG.warn("Can't create trash directory: " + dstTrashParent, e);
+            cause = e;
+            break;
+          }
+          try {
+            while(namesystem.getFileInfo(dstString,false,false,false) != null) {
+              dstString = tmpDstString + Time.now();
+            }
+            if (!checkPathLength(dstString)) {
+              throw new IOException("rename: Pathname too long.  Limit " +
+                      MAX_PATH_LENGTH + " characters, " + MAX_PATH_DEPTH + " levels.");
+            }
+            if (!recursive) {
+              FSDirectory fsd = namesystem.getFSDirectory();
+              FSPermissionChecker pc = fsd.getPermissionChecker();
+              if (FSDirectory.isExactReservedName(src)) {
+                throw new InvalidPathException(src);
+              }
+              final INodesInPath iip = fsd.resolvePath(pc, src, FSDirectory.DirOp.WRITE_LINK);
+              if (fsd.isNonEmptyDirectory(iip)) {
+                throw new PathIsNotEmptyDirectoryException(
+                        iip.getPath() + " is non empty");
+              }
+            }
+            ret = namesystem.renameTo(src, dstString, cacheEntry != null);
+            LOG.info("Moved: '" + src + "' to trash at: " + dstString);
+            if (ret)
+              metrics.incrFilesRenamed();
+            return ret;
+          } catch (IOException e) {
+            cause = e;
+          }
+        }
+      }
+      throw (IOException)
+              new IOException("Failed to move to trash: " + src + "," + cause.getMessage()).initCause(cause);
     } finally {
       RetryCache.setState(cacheEntry, ret);
     }
-    if (ret) 
-      metrics.incrDeleteFileOps();
-    return ret;
   }
 
   /**
