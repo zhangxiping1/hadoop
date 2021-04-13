@@ -1189,6 +1189,18 @@ public class YarnConfiguration extends Configuration {
   public static final int
       DEFAULT_RM_DECOMMISSIONING_NODES_WATCHER_POLL_INTERVAL = 20;
 
+  /**
+   *
+   * Dump application report to log when application state transision.
+   */
+  public static final String APPLICATION_REPORT_DUMP_ENABLED =
+          RM_PREFIX + "application-report-dump.enabled";
+  public static final boolean DEFAULT_APPLICATION_REPORT_DUMP_ENABLED = true;
+
+  public static final String APPLICATION_REPORT_DUMP_THRESHOLD_MS_KEY =
+          RM_PREFIX + "application-report-dump.threshold-ms";
+  public static final long APPLICATION_REPORT_DUMP_THRESHOLD_MS_DEFAULT = 100L;
+
   ////////////////////////////////
   // Node Manager Configs
   ////////////////////////////////

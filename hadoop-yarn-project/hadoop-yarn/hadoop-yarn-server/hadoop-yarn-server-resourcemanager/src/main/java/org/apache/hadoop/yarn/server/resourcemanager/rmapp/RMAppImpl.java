@@ -28,10 +28,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock;
 
+import org.apache.hadoop.util.StopWatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.classification.InterfaceAudience.Private;
@@ -117,6 +119,7 @@ public class RMAppImpl implements RMApp, Recoverable {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(RMAppImpl.class);
+  private static final Logger APP_REPORT_LOG = LoggerFactory.getLogger("AppReportLog");
   private static final String UNAVAILABLE = "N/A";
   private static final String UNLIMITED = "UNLIMITED";
   private static final long UNKNOWN = -1L;
@@ -158,7 +161,8 @@ public class RMAppImpl implements RMApp, Recoverable {
 
   private boolean isNumAttemptsBeyondThreshold = false;
 
-
+  private boolean isDumpAppReport = false;
+  private long dumpAppReportThresholdMs;
 
   // Mutable fields
   private long startTime;
@@ -524,6 +528,11 @@ public class RMAppImpl implements RMApp, Recoverable {
         blacklistDisableThreshold = YarnConfiguration.
             DEFAULT_AM_SCHEDULING_NODE_BLACKLISTING_DISABLE_THRESHOLD;
       }
+
+      isDumpAppReport = conf.getBoolean(YarnConfiguration.APPLICATION_REPORT_DUMP_ENABLED,
+              YarnConfiguration.DEFAULT_APPLICATION_REPORT_DUMP_ENABLED);
+      dumpAppReportThresholdMs = conf.getLong(YarnConfiguration.APPLICATION_REPORT_DUMP_THRESHOLD_MS_KEY,
+              YarnConfiguration.APPLICATION_REPORT_DUMP_THRESHOLD_MS_DEFAULT);
     }
   }
 
@@ -905,6 +914,16 @@ public class RMAppImpl implements RMApp, Recoverable {
         LOG.debug(String.format(STATE_CHANGE_MESSAGE, appID, oldState,
             getState(), event.getType()));
       }
+
+      if (isDumpAppReport) {
+        StopWatch sw = new StopWatch().start();
+        String appReport = createAndGetApplicationReport(null, true).toString();
+        APP_REPORT_LOG.info("elapse: " + sw.stop().now(TimeUnit.MILLISECONDS) + "ms " + appReport);
+        if (sw.now(TimeUnit.MILLISECONDS) > dumpAppReportThresholdMs) {
+          LOG.warn("Slowly create and get application report, elapse " + sw.now(TimeUnit.MILLISECONDS));
+        }
+      }
+
     } finally {
       this.writeLock.unlock();
     }
