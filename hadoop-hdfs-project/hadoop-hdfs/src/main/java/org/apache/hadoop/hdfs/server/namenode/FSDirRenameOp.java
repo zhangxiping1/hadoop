@@ -55,6 +55,12 @@ class FSDirRenameOp {
           " to " + dst);
     }
 
+    if (dst.contains(".Trash")) {
+      FSPermissionChecker.setOperationType("renameToTrash");
+    } else {
+      FSPermissionChecker.setOperationType("rename");
+    }
+
     // Rename does not operate on link targets
     // Do not resolveLink when checking permissions of src and dst
     INodesInPath srcIIP = fsd.resolvePath(pc, src, DirOp.WRITE_LINK);
@@ -245,6 +251,12 @@ class FSDirRenameOp {
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* NameSystem.renameTo: with options -" +
           " " + src + " to " + dst);
+    }
+
+    if (dst.contains(".Trash")) {
+      FSPermissionChecker.setOperationType("renameToTrash");
+    } else {
+      FSPermissionChecker.setOperationType("rename");
     }
 
     BlocksMapUpdateInfo collectedBlocks = new BlocksMapUpdateInfo();
