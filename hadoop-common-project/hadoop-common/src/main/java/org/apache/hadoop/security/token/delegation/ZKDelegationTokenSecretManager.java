@@ -103,6 +103,8 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
           + "ZKDTSMSeqNumStartIndex";
   public static final String ZK_DTSM_ZK_getToken_retry_sleep_time = ZK_CONF_PREFIX
           + "ZKDTSMGetTokenRetrySleepTime";
+  public static final String ZK_DTSM_ZK_NewToken_age = ZK_CONF_PREFIX
+          + "ZKDTSMNewTokenAge";
 
   public static final int ZK_DTSM_ZK_NUM_RETRIES_DEFAULT = 3;
   public static final int ZK_DTSM_ZK_SESSION_TIMEOUT_DEFAULT = 10000;
@@ -142,7 +144,7 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
   private final long shutdownTimeout;
   private final int ZKDTSMSeqNumStartIndex;
   private final int ZKDTSMGetTokenRetrySleepTime;
-
+  private final int ZKDTSMNewTokenAge;
   public ZKDelegationTokenSecretManager(Configuration conf) {
     super(conf.getLong(DelegationTokenManager.UPDATE_INTERVAL,
         DelegationTokenManager.UPDATE_INTERVAL_DEFAULT) * 1000,
@@ -156,6 +158,7 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
         ZK_DTSM_ZK_SHUTDOWN_TIMEOUT_DEFAULT);
     ZKDTSMSeqNumStartIndex = conf.getInt(ZK_DTSM_ZK_SEQ_NUM_START_INDEX, 0);
     ZKDTSMGetTokenRetrySleepTime = conf.getInt(ZK_DTSM_ZK_getToken_retry_sleep_time, 100);
+    ZKDTSMNewTokenAge = conf.getInt(ZK_DTSM_ZK_NewToken_age, 120000);
     if (CURATOR_TL.get() != null) {
       zkClient =
           CURATOR_TL.get().usingNamespace(
@@ -739,14 +742,23 @@ public abstract class ZKDelegationTokenSecretManager<TokenIdent extends Abstract
           return tokenInfo;
         }
       } catch (KeeperException.NoNodeException e) {
-        if (!quiet && i < 2) {
+        if (!quiet) {
           LOG.warn("No node in path [" + nodePath + "],will sleep " + ZKDTSMGetTokenRetrySleepTime + " and retry");
-          try {
-            Thread.sleep(ZKDTSMGetTokenRetrySleepTime);
-          } catch (InterruptedException interruptedException) {
-            interruptedException.printStackTrace();
+        }
+        if (i < 2 ) {
+          //Only retry the token whose age is younger than ZKDTSMNewTokenAge
+          if (ident.getIssueDate() + ZKDTSMNewTokenAge > now) {
+              try {
+                Thread.sleep(ZKDTSMGetTokenRetrySleepTime);
+              } catch (InterruptedException interruptedException) {
+                interruptedException.printStackTrace();
+              }
+          } else {
+            LOG.error("No node in path [" + nodePath + "]");
+            return null;
           }
-        } else {
+        }
+        else {
           LOG.error("No node in path [" + nodePath + "]");
         }
       } catch (Exception ex) {
