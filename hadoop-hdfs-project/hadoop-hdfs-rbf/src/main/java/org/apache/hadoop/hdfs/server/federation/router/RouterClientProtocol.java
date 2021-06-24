@@ -816,7 +816,9 @@ public class RouterClientProtocol implements ClientProtocol {
               // Discarding entries further than the lastName
               remainingEntries++;
             } else {
-              nnListing.put(filename, file);
+              if(!nnListing.containsKey(filename)){
+                nnListing.put(filename, file);
+              }
             }
           }
           remainingEntries += listing.getRemainingEntries();
@@ -852,7 +854,9 @@ public class RouterClientProtocol implements ClientProtocol {
                 lastName, startAfter, remainingEntries)) {
             // This may overwrite existing listing entries with the mount point
             // TODO don't add if already there?
-            nnListing.put(child, dirStatus);
+            if(!nnListing.containsKey(child)){
+              nnListing.put(child, dirStatus);
+            }
           }
         }
       }
