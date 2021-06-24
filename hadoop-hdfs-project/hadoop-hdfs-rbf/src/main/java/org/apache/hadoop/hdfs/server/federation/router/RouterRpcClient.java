@@ -1325,6 +1325,7 @@ public class RouterRpcClient {
         futures = executorService.invokeAll(callables);
       }
       List<RemoteResult<T, R>> results = new ArrayList<>();
+      Boolean printLog = false;
       for (int i=0; i<futures.size(); i++) {
         T location = orderedLocations.get(i);
         try {
@@ -1338,6 +1339,7 @@ public class RouterRpcClient {
           LOG.error(msg);
           IOException ioe = new SubClusterTimeoutException(msg);
           results.add(new RemoteResult<>(location, ioe));
+          printLog = true;
         } catch (ExecutionException ex) {
           Throwable cause = ex.getCause();
           LOG.debug("Canot execute {} in {}: {}",
@@ -1354,9 +1356,29 @@ public class RouterRpcClient {
 
           // Store the exceptions
           results.add(new RemoteResult<>(location, ioe));
+          printLog = true;
         }
       }
+      if (printLog == true) {
+        for (RemoteResult result : results) {
+          String nameserviceId = result.getLocation().getNameserviceId();
+          String src = result.getLocation().getSrc();
+          String dest = result.getLocation().getDest();
 
+          if (result.hasException()) {
+            IOException ioe = result.getException();
+            String msg = "[partial failed]: \" nameserviceId=" +
+                nameserviceId + ",src=" + src + ",dest=" + dest +",methodName=" +
+                method.getMethodName() + ",status=failed,error="+ ioe.getMessage()+"\"";
+            LOG.warn(msg);
+          } else  {
+            String msg = "[partial succeed]: \" nameserviceId=" +
+                nameserviceId + ",src=" + src + ",dest=" + dest +",methodName=" +
+                method.getMethodName() + ",status=succeed";
+            LOG.warn(msg);
+          }
+        }
+      }
       return results;
     } catch (RejectedExecutionException e) {
       if (rpcMonitor != null) {
