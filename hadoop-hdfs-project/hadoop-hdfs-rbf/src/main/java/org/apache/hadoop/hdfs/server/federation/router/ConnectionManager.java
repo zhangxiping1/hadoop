@@ -418,7 +418,8 @@ public class ConnectionManager {
             float poolMinActiveRatio = pool.getMinActiveRatio();
             if (pool.getNumConnections() < pool.getMaxSize() &&
                 active >= poolMinActiveRatio * total) {
-              ConnectionContext conn = pool.newConnection();
+              /** The current index is total-1, so the index of the new ConnectionContext is total */
+              ConnectionContext conn = pool.newConnection(total);
               pool.addConnection(conn);
             } else {
               LOG.debug("Cannot add more than {} connections to {}",

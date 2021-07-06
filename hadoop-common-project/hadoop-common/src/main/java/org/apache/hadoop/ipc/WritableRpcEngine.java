@@ -295,6 +295,15 @@ public class WritableRpcEngine implements RpcEngine {
       rpcTimeout, connectionRetryPolicy, null, null);
   }
 
+  @Override
+  public <T> ProtocolProxy<T> getProxy(Class<T> protocol, long clientVersion,
+                                       Client.ConnectionId connId, Configuration conf, SocketFactory factory)
+      throws IOException {
+    return getProxy(protocol, clientVersion, connId.getAddress(),
+        connId.ticket, conf, factory, connId.getRpcTimeout(),
+        connId.getRetryPolicy(), null, null);
+  }
+
   /** Construct a client-side proxy object that implements the named protocol,
    * talking to a server at the named address. 
    * @param <T>*/

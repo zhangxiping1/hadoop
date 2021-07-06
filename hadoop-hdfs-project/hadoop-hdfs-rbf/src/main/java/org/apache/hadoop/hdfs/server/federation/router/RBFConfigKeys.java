@@ -113,6 +113,10 @@ public class RBFConfigKeys extends CommonConfigurationKeysPublic {
       DFS_ROUTER_NAMENODE_CONNECTION_MIN_ACTIVE_RATIO_DEFAULT = 0.5f;
   public static final String DFS_ROUTER_NAMENODE_CONNECTION_POOL_SIZE =
       FEDERATION_ROUTER_PREFIX + "connection.pool-size";
+
+  public static final String DFS_ROUTER_NAMENODE_CONNECTION_MULTIPLE =
+      FEDERATION_ROUTER_PREFIX + ".connection.multiple";
+
   public static final int DFS_ROUTER_NAMENODE_CONNECTION_POOL_SIZE_DEFAULT =
       64;
   public static final String DFS_ROUTER_NAMENODE_CONNECTION_POOL_CLEAN =

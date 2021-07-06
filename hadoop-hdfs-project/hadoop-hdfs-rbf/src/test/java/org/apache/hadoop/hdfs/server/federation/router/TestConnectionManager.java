@@ -239,7 +239,7 @@ public class TestConnectionManager {
   private void addConnectionsToPool(ConnectionPool pool, int numTotalConn,
       int numActiveConn) throws IOException {
     for (int i = 0; i < numTotalConn; i++) {
-      ConnectionContext cc = pool.newConnection();
+      ConnectionContext cc = pool.newConnection(i);
       pool.addConnection(cc);
       if (i < numActiveConn) {
         cc.getClient();
@@ -308,7 +308,7 @@ public class TestConnectionManager {
     LambdaTestUtils.intercept(IllegalStateException.class,
         "Unsupported protocol for connection to NameNode: "
             + TestConnectionManager.class.getName(),
-        () -> ConnectionPool.newConnection(conf, TEST_NN_ADDRESS, TEST_USER1,
+        () -> ConnectionPool.newConnection(conf, TEST_NN_ADDRESS, TEST_USER1,0,
             TestConnectionManager.class));
   }
 }

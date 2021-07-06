@@ -309,6 +309,13 @@ public class TestRPC extends TestRpcBase {
     }
 
     @Override
+    public <T> ProtocolProxy<T> getProxy(Class<T> protocol, long clientVersion,
+                                         ConnectionId connId, Configuration conf, SocketFactory factory)
+        throws IOException {
+      throw new UnsupportedOperationException("This proxy is not supported");
+    }
+
+    @Override
     public ProtocolProxy<ProtocolMetaInfoPB> getProtocolMetaInfoProxy(
         ConnectionId connId, Configuration conf, SocketFactory factory)
         throws IOException {

@@ -44,6 +44,10 @@ public interface RpcEngine {
                   SocketFactory factory, int rpcTimeout,
                   RetryPolicy connectionRetryPolicy) throws IOException;
 
+  /** Construct a client-side proxy object using a ConnectionId. */
+  <T> ProtocolProxy<T> getProxy(Class<T> protocol, long clientVersion,
+                 Client.ConnectionId connId, Configuration conf, SocketFactory factory) throws IOException;
+
   /** Construct a client-side proxy object. */
   <T> ProtocolProxy<T> getProxy(Class<T> protocol,
                   long clientVersion, InetSocketAddress addr,

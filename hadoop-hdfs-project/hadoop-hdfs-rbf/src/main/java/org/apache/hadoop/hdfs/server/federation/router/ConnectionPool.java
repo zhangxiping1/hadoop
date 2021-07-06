@@ -152,7 +152,7 @@ public class ConnectionPool {
 
     // Add minimum connections to the pool
     for (int i=0; i<this.minSize; i++) {
-      ConnectionContext newConnection = newConnection();
+      ConnectionContext newConnection = newConnection(i);
       this.connections.add(newConnection);
     }
     LOG.debug("Created connection pool \"{}\" with {} connections",
@@ -349,9 +349,9 @@ public class ConnectionPool {
    *         security context.
    * @throws IOException If it cannot get a new connection.
    */
-  public ConnectionContext newConnection() throws IOException {
+  public ConnectionContext newConnection(int index) throws IOException {
     return newConnection(
-        this.conf, this.namenodeAddress, this.ugi, this.protocol);
+        this.conf, this.namenodeAddress, this.ugi,index, this.protocol);
   }
 
   /**
@@ -370,7 +370,7 @@ public class ConnectionPool {
    * @throws IOException If it cannot be created.
    */
   protected static <T> ConnectionContext newConnection(Configuration conf,
-      String nnAddress, UserGroupInformation ugi, Class<T> proto)
+      String nnAddress, UserGroupInformation ugi,int index, Class<T> proto)
       throws IOException {
     if (!PROTO_MAP.containsKey(proto)) {
       String msg = "Unsupported protocol for connection to NameNode: "
@@ -394,8 +394,11 @@ public class ConnectionPool {
     }
     InetSocketAddress socket = NetUtils.createSocketAddr(nnAddress);
     final long version = RPC.getProtocolVersion(classes.protoPb);
-    Object proxy = RPC.getProtocolProxy(classes.protoPb, version, socket, ugi,
-        conf, factory, RPC.getRpcTimeout(conf), defaultPolicy, null).getProxy();
+    FederationConnectionId connectionId = new FederationConnectionId(
+        socket, NamenodeProtocolPB.class, ugi, RPC.getRpcTimeout(conf),
+        defaultPolicy, conf, index);
+    Object proxy = RPC.getProtocolProxy(classes.protoPb, version,
+        connectionId, conf, factory).getProxy();
     T client = newProtoClient(proto, classes, proxy);
     Text dtService = SecurityUtil.buildTokenService(socket);
 
