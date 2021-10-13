@@ -818,6 +818,10 @@ public class RouterClientProtocol implements ClientProtocol {
             } else {
               if(!nnListing.containsKey(filename)){
                 nnListing.put(filename, file);
+              } else if(nnListing.containsKey(filename) && file.isDir()){
+                HdfsFileStatus fileStatus = nnListing.get(filename);
+                int num = fileStatus.getChildrenNum() + file.getChildrenNum();
+                nnListing.put(filename,updateMountPointStatus(fileStatus,num));
               }
             }
           }
