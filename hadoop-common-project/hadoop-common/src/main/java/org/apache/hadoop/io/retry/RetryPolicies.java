@@ -674,7 +674,6 @@ public class RetryPolicies {
       }
 
       if (e instanceof ConnectException ||
-          e instanceof EOFException ||
           e instanceof NoRouteToHostException ||
           e instanceof UnknownHostException ||
           e instanceof StandbyException ||
@@ -682,6 +681,14 @@ public class RetryPolicies {
           shouldFailoverOnException(e)) {
         return new RetryAction(RetryAction.RetryDecision.FAILOVER_AND_RETRY,
             getFailoverOrRetrySleepTime(failovers));
+      } else if (e instanceof EOFException) {
+        if(retries < 3) {
+          return new RetryAction(RetryAction.RetryDecision.RETRY,
+              getFailoverOrRetrySleepTime(retries));
+        } else {
+          return new RetryAction(RetryAction.RetryDecision.FAILOVER_AND_RETRY,
+              getFailoverOrRetrySleepTime(failovers));
+        }
       } else if (e instanceof RetriableException
           || getWrappedRetriableException(e) != null) {
         // RetriableException or RetriableException wrapped 
