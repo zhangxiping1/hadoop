@@ -22,6 +22,8 @@ import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_HANDLER_COUNT_KEY;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_HANDLER_QUEUE_SIZE_DEFAULT;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_HANDLER_QUEUE_SIZE_KEY;
+import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_LOCALITY_ENABLE;
+import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_LOCALITY_ENABLE_DEFAULT;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_READER_COUNT_DEFAULT;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_READER_COUNT_KEY;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_READER_QUEUE_SIZE_DEFAULT;
@@ -33,6 +35,7 @@ import java.lang.reflect.Array;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -177,6 +180,9 @@ public class RouterRpcServer extends AbstractService implements ClientProtocol,
   /** Configuration for the RPC server. */
   private Configuration conf;
 
+  /** Whether hdfs locality is enable. */
+  private boolean localityEnable;
+
   /** Router using this RPC server. */
   private final Router router;
 
@@ -237,6 +243,9 @@ public class RouterRpcServer extends AbstractService implements ClientProtocol,
     this.router = router;
     this.namenodeResolver = nnResolver;
     this.subclusterResolver = fileResolver;
+
+    localityEnable = this.conf.getBoolean(DFS_ROUTER_LOCALITY_ENABLE,
+        DFS_ROUTER_LOCALITY_ENABLE_DEFAULT);
 
     // RPC server settings
     int handlerCount = this.conf.getInt(DFS_ROUTER_HANDLER_COUNT_KEY,
@@ -730,8 +739,12 @@ public class RouterRpcServer extends AbstractService implements ClientProtocol,
       ExtendedBlock previous, DatanodeInfo[] excludedNodes, long fileId,
       String[] favoredNodes, EnumSet<AddBlockFlag> addBlockFlags)
       throws IOException {
+    String[] extendFavoredNodes = favoredNodes;
+    if (localityEnable) {
+      extendFavoredNodes = getFavoredNodesWithClient(favoredNodes);
+    }
     return clientProto.addBlock(src, clientName, previous, excludedNodes,
-        fileId, favoredNodes, addBlockFlags);
+        fileId, extendFavoredNodes, addBlockFlags);
   }
 
   /**
@@ -1592,6 +1605,23 @@ public class RouterRpcServer extends AbstractService implements ClientProtocol,
     UserGroupInformation ugi = CUR_USER.get();
     ugi = (ugi != null) ? ugi : Server.getRemoteUser();
     return (ugi != null) ? ugi : UserGroupInformation.getCurrentUser();
+  }
+
+  /**
+   +   * Add client's host name or address to favoredNodes.
+   +   * @param favoredNodes the list of exist nodes.
+   +   * @return Nodes including client and exist favoredNodes.
+   +   */
+  static String[] getFavoredNodesWithClient(String[] favoredNodes) {
+    // TODO check client is one of datanodes
+    int capacity = favoredNodes == null ? 1 : favoredNodes.length + 1;
+    List<String> favoredNodesList = new ArrayList<String>(capacity);
+    if (favoredNodes != null) {
+      favoredNodesList.addAll(Arrays.asList(favoredNodes));
+    }
+    favoredNodesList.add(Server.getRemoteAddress());
+    String[] extendFavoredNodes = favoredNodesList.toArray(new String[0]);
+    return extendFavoredNodes;
   }
 
   /**

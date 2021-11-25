@@ -37,7 +37,9 @@ import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -118,6 +120,7 @@ import org.apache.hadoop.io.EnumSetWritable;
 import org.apache.hadoop.io.erasurecode.ECSchema;
 import org.apache.hadoop.io.erasurecode.ErasureCodeConstants;
 import org.apache.hadoop.ipc.CallerContext;
+import org.apache.hadoop.ipc.Server;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.service.Service.STATE;
 import org.apache.hadoop.test.GenericTestUtils;
@@ -1786,6 +1789,69 @@ public class TestRouterRpc {
         router.getRouter().getRpcServer().getGroupsForUser("user");
     assertArrayEquals(group, result);
   }
+
+  @Test
+  public void testGetFavoredNodesWithClient() throws IOException{
+    class VirtualCall extends Server.Call {
+      VirtualCall() {
+        super(0, 0, null, null, null, null);
+      }
+      @Override
+      public InetAddress getHostInetAddress() {
+        try {
+          return InetAddress.getByName("0.0.0.0");
+        } catch (UnknownHostException e) {
+        }
+        return null;
+      }
+    }
+
+    // Save original current call
+    Server.Call origCall = Server.getCurCall().get();
+
+    Server.Call virtualCall = new VirtualCall();
+    Server.getCurCall().set(virtualCall);
+    String[] favoredNodes = new String[]{"0.0.0.1"};
+    String[] extendFavoredNodes = RouterRpcServer
+        .getFavoredNodesWithClient(favoredNodes);
+
+    assertTrue(extendFavoredNodes.length == 2);
+    List<String> extendFavoredNodesList = Arrays.asList(extendFavoredNodes);
+    assertTrue(extendFavoredNodesList.contains("0.0.0.1"));
+    assertTrue(extendFavoredNodesList.contains("0.0.0.0"));
+
+    // Set to original call
+    Server.getCurCall().set(origCall);
+  }
+
+  @Test
+  public void testAddBlockWithLocality()
+      throws IOException, URISyntaxException {
+    // Create file
+    EnumSet<CreateFlag> createFlag = EnumSet.of(CreateFlag.CREATE);
+    String clientName = getRouterContext().getClient().getClientName();
+    String newRouterFile = routerFile + "_testaddblockwithlocality";
+    HdfsFileStatus status = routerProtocol.create(
+        newRouterFile, new FsPermission("777"), clientName,
+        new EnumSetWritable<CreateFlag>(createFlag), true, (short) 1,
+        (long) 1024, CryptoProtocolVersion.supported(), null,null);
+
+    // Add a block via router
+    LocatedBlock block = routerProtocol.addBlock(
+        newRouterFile, clientName, null, null,
+        status.getFileId(), null, null);
+
+    InetAddress inetAddress = InetAddress.getLocalHost();
+    List<String> dnList = new ArrayList<String>(block.getLocations().length);
+    for (DatanodeInfo dn:block.getLocations()) {
+      dnList.add(dn.getIpAddr());
+    }
+    // Verify current node is one of datanodes. Locally it must be.
+    assertTrue(dnList.toString() + " should contains "
+            + inetAddress.getHostAddress(),
+        dnList.contains(inetAddress.getHostAddress()));
+  }
+
 
   /**
    * Check the erasure coding policies in the Router and the Namenode.

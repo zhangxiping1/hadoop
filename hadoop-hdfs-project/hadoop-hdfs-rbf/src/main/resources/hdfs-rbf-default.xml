@@ -645,4 +645,12 @@
     </description>
   </property>
 
+  <property>
+    <name>dfs.federation.router.locality.enable</name>
+    <value>true</value>
+    <description>
+      If true, the router will send request with client ip.
+    </description>
+  </property>
+
 </configuration>
