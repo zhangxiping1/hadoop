@@ -3942,6 +3942,9 @@ public abstract class Server {
               ": disconnecting client " + connection +
               ". Number of active connections: "+ size());
         }
+        LOG.info("**************"+Thread.currentThread().getName() +
+            ": disconnecting client " + connection +
+            ". Number of active connections: "+ size());
         // only close if actually removed to avoid double-closing due
         // to possible races
         connection.close();

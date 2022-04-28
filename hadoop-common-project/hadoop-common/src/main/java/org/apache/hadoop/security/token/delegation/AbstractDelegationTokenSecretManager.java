@@ -143,6 +143,7 @@ extends AbstractDelegationTokenIdentifier>
     synchronized (this) {
       running = true;
       tokenRemoverThread = new Daemon(new ExpiredTokenRemover());
+      tokenRemoverThread.setName("ExpiredTokenRemover");
       tokenRemoverThread.start();
     }
   }

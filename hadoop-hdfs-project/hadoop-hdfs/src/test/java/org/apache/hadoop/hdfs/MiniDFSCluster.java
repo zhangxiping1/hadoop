@@ -927,7 +927,7 @@ public class MiniDFSCluster implements AutoCloseable {
       this.checkExitOnShutdown = checkExitOnShutdown;
     
       int replication = conf.getInt(DFS_REPLICATION_KEY, 3);
-      conf.setInt(DFS_REPLICATION_KEY, Math.min(replication, numDataNodes));
+      conf.setInt(DFS_REPLICATION_KEY, Math.min(replication, 1));
       int maintenanceMinReplication = conf.getInt(
           DFSConfigKeys.DFS_NAMENODE_MAINTENANCE_REPLICATION_MIN_KEY,
           DFSConfigKeys.DFS_NAMENODE_MAINTENANCE_REPLICATION_MIN_DEFAULT);
