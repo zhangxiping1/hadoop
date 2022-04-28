@@ -919,6 +919,31 @@ public class MiniRouterDFSCluster {
 
     // Create one router per nameservice
     this.routers = new ArrayList<>();
+    for (String ns : this.nameservices) {
+      for (NamenodeContext context : getNamenodes(ns)) {
+        RouterContext router = buildRouter(ns, context.namenodeId);
+        this.routers.add(router);
+      }
+    }
+
+    // Start all routers
+    for (RouterContext router : this.routers) {
+      router.router.start();
+    }
+
+    // Wait until all routers are active and record their ports
+    for (RouterContext router : this.routers) {
+      waitActive(router);
+      router.initRouter();
+    }
+  }
+
+
+  public void startMYRouters()
+      throws InterruptedException, URISyntaxException, IOException {
+
+    // Create one router per nameservice
+    this.routers = new ArrayList<>();
     int i =0;
     for (String ns : this.nameservices) {
       for (NamenodeContext context : getNamenodes(ns)) {

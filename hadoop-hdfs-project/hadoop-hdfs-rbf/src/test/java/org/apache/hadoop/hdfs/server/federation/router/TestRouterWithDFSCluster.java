@@ -165,7 +165,7 @@ public class TestRouterWithDFSCluster {
         routerConf.set("dfs.federation.router.connection.pool-size","5");
 
         cluster.addRouterOverrides(routerConf);
-        cluster.startRouters();
+        cluster.startMYRouters();
 
         // Register and verify all NNs with all routers
         cluster.registerNamenodes();
