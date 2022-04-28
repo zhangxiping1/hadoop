@@ -1,0 +1,125 @@
+<configuration>
+    <!-- 定义了root下有三个队列root.pro root.dev root.def -->
+    <property>
+        <name>yarn.scheduler.capacity.root.queues</name>
+        <value>default,pro,dev,def</value>
+    </property>
+    <!-- 定义了root队列默认分区的资源容量为100% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 定义root队列的默认分区的资源最大容量为100% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.maximum-capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 定义了root队列可以访问的标签为所有分区，如果为空则表示只能访问默认分区 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.accessible-node-labels</name>
+        <value>*</value>
+    </property>
+    <!-- 定义了root队列可以访问的cpu分区的容量 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.accessible-node-labels.cpu.capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 定义了root队列可以访问的cpu分区的最大容量 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.accessible-node-labels.cpu.maximum-capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 定义了root队列可以访问的mem分区的容量 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.accessible-node-labels.mem.capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 定义了root队列可以访问的mem分区的最大容量 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.accessible-node-labels.mem.maximum-capacity</name>
+        <value>100</value>
+    </property>
+
+    <!--队列root.default使用默认分区的容量为40%-->
+    <property>
+        <name>yarn.scheduler.capacity.root.default.capacity</name>
+        <value>20</value>
+    </property>
+
+    <!--队列root.pro使用默认分区的容量为40%-->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.capacity</name>
+        <value>20</value>
+    </property>
+    <!-- 队列root.pro使用默认分区的最大容量为100% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.maximum-capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 队列root.pro可以访问的分区cpu和mem -->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.accessible-node-labels</name>
+        <value>cpu,mem</value>
+    </property>
+    <!-- 队列root.pro默认访问cpu分区 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.default-node-label-expression</name>
+        <value>cpu</value>
+    </property>
+    <!-- 队列root.pro访问cpu分区的容量为100% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.accessible-node-labels.cpu.capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 队列root.pro访问cpu分区的最大容量为100% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.accessible-node-labels.cpu.maximum-capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 队列root.pro访问50%的mem分区容量 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.accessible-node-labels.mem.capacity</name>
+        <value>50</value>
+    </property>
+    <!-- 队列root.pro可以访问100%的mem分区的容量 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.pro.accessible-node-labels.mem.maximum-capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 定义root.dev队列访问默认分区的比例为30% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.dev.capacity</name>
+        <value>30</value>
+    </property>
+    <!-- 定义root.dev队列访问默认分区的最大比例为100% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.dev.maximum-capacity</name>
+        <value>100</value>
+    </property>
+    <!-- 定义root.dev队列访问的分区为mem -->
+    <property>
+        <name>yarn.scheduler.capacity.root.dev.accessible-node-labels</name>
+        <value>mem</value>
+    </property>
+    <!-- 定义root.dev队列访问mem分区的容量为50% -->
+    <property>
+        <name>yarn.scheduler.capacity.root.dev.accessible-node-labels.mem.capacity</name>
+        <value>50</value>
+    </property>
+    <!-- 定义root.dev队列访问mem分区的最大容量为100%-->
+    <property>
+        <name>yarn.scheduler.capacity.root.dev.accessible-node-labels.mem.maximum-capacity</name>
+        <value>100</value>
+    </property>
+
+    <!-- 定义root.def队列访问默认分区30%的容量 -->
+    <property>
+        <name>yarn.scheduler.capacity.root.def.capacity</name>
+        <value>30</value>
+    </property>
+    <!-- 定义root.def队列访问默认分区最大容量为100%-->
+    <property>
+        <name>yarn.scheduler.capacity.root.def.maximum-capacity</name>
+        <value>100</value>
+    </property>
+</configuration>

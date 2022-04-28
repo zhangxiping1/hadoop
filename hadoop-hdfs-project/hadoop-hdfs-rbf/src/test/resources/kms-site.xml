@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><configuration>
+<property><name>hadoop.kms.authentication.type</name><value>simple</value><final>false</final><source>programatically</source></property>
+<property><name>hadoop.kms.key.provider.uri</name><value>jceks://file@/D:/project/neproject/ne-hadoop/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-jobclient/target/test-classes/kms.keystore</value><final>false</final><source>programatically</source></property>
+</configuration>
