@@ -61,6 +61,23 @@ public class RemoteLocation extends RemoteLocationContext {
   }
 
   /**
+   * Use the Ns and Nn of a remote location
+   * and another path to create a new remote location pointing.
+   *
+   * @param remoteLocation A remoteLocation.
+   * @param path Path in the destination namespace.
+   */
+  public RemoteLocation(RemoteLocation remoteLocation, String path) {
+    this.nameserviceId = remoteLocation.nameserviceId;
+    String[] nsMsg = this.nameserviceId.split(":", 3);
+    this.namenodeId = remoteLocation.namenodeId;
+    this.dstPath = path;
+    this.srcPath = path;
+    this.priority = nsMsg.length >= 2 ? Integer.parseInt(nsMsg[1]) : 0;
+    this.readOnly = nsMsg.length >= 3 && Boolean.parseBoolean(nsMsg[2]);
+  }
+
+  /**
    * Create a remote location point with priority and read-only attributes.
    *
    * @param nsId     Destination namespace.
