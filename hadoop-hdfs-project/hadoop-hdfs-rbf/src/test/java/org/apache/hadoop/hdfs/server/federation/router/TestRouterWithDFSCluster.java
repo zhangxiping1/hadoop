@@ -125,6 +125,8 @@ public class TestRouterWithDFSCluster {
         // this issue, we disable considerLoad option.
         namenodeConf.setBoolean(DFS_NAMENODE_REDUNDANCY_CONSIDERLOAD_KEY, false);
         namenodeConf.set("ipc.client.idlethreshold","0");
+        namenodeConf.set("fs.trash.interval","1440");
+        namenodeConf.set("fs.trash.checkpoint.interval","1440");
         cluster = new MiniRouterDFSCluster(false, NUM_SUBCLUSTERS);
         cluster.setNumDatanodesPerNameservice(NUM_DNS);
         cluster.addNamenodeOverrides(namenodeConf);
