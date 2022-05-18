@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdfs.server.federation.router;
 
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.HADOOP_SECURITY_AUTHORIZATION;
+import static org.apache.hadoop.hdfs.server.federation.resolver.MountTableResolver.isTrashPath;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_HANDLER_COUNT_DEFAULT;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_HANDLER_COUNT_KEY;
 import static org.apache.hadoop.hdfs.server.federation.router.RBFConfigKeys.DFS_ROUTER_HANDLER_QUEUE_SIZE_DEFAULT;
@@ -1710,6 +1711,9 @@ public class RouterRpcServer extends AbstractService implements ClientProtocol,
   boolean isPathAll(final String path) {
     if (subclusterResolver instanceof MountTableResolver) {
       try {
+        if(isTrashPath(path)){
+          return true;
+        }
         MountTableResolver mountTable = (MountTableResolver) subclusterResolver;
         MountTable entry = mountTable.getMountPoint(path);
         if (entry != null) {
