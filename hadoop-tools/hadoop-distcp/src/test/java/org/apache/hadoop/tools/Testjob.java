@@ -196,9 +196,10 @@ public class Testjob {
     }
 
     @Test
-    public void mapreduceJob1() throws Exception {
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
-        Configuration conf = new Configuration();
+    public void mapreduceJobNOKerBose() throws Exception {
+        clearClassPath();
+        Configuration conf = new HdfsConfiguration();
+        conf.set("fs.defaultFS", "hdfs://127.0.0.1:40250");
         System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("hadoop.root.logger","INFO,stdout");
         System.setProperty("java.security.krb5.conf",projectPath+ "/target/test-classes/krb5.conf");
@@ -206,7 +207,6 @@ public class Testjob {
         conf.set("mapreduce.job.queuename","root.da_music.sla");
         conf.set("file.encoding","utf-8");
         Long startTs = System.currentTimeMillis();
-        conf.addResource(new Path("/Users/temp/yarn-site.xml"));
         conf.set("dfs.replication","3");
         String[] args = new String[]{"/a","/user/zhangxiping/"+startTs};
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
