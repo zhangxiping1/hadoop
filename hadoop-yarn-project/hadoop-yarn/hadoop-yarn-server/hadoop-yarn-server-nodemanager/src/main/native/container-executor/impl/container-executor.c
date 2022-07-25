@@ -1369,6 +1369,7 @@ int initialize_app(const char *user, const char *app_id,
                    const char* nmPrivate_credentials_file,
                    char* const* local_dirs, char* const* log_roots,
                    char* const* args) {
+  umask(0027);
   if (app_id == NULL || user == NULL || user_detail == NULL || user_detail->pw_name == NULL) {
     fprintf(LOGFILE, "Either app_id is null or the user passed is null.\n");
     return INVALID_ARGUMENT_NUMBER;
