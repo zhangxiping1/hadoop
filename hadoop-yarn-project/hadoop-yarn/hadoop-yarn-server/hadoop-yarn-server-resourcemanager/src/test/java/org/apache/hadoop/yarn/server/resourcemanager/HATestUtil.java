@@ -23,13 +23,14 @@ import org.apache.hadoop.yarn.conf.HAUtil;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 
 import java.io.IOException;
+import java.net.InetAddress;
 
 public class HATestUtil {
 
   public static void setRpcAddressForRM(String rmId, int base,
       Configuration conf) throws IOException {
     for (String confKey : YarnConfiguration.getServiceAddressConfKeys(conf)) {
-      setConfForRM(rmId, confKey, "0.0.0.0:" + ServerSocketUtil.getPort(base +
+      setConfForRM(rmId, confKey,"0.0.0.0:"  + ServerSocketUtil.getPort(base +
           YarnConfiguration.getRMDefaultPortNumber(confKey, conf), 10), conf);
     }
   }

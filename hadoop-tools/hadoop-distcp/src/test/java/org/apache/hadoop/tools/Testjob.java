@@ -20,6 +20,7 @@ import org.apache.hadoop.util.ToolRunner;
 
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.client.api.impl.YarnClientImpl;
+import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.junit.Test;
 
 import java.io.DataOutputStream;
@@ -42,6 +43,7 @@ public class Testjob {
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 word.set(itr.nextToken());
+                Thread.sleep(10000);
                 context.write(word, one);
             }
         }
@@ -128,16 +130,15 @@ public class Testjob {
 
     @Test
     public void testHdfsApiAddFile() throws Exception {
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new HdfsConfiguration();
         conf.set("ipc.client.rpc-timeout.ms","120000");
         conf.set("ipc.ping.interval","120000");
         conf.get("ipc.ping.interval");
-        System.out.println(System.getProperty("java.security.krb5.conf"));
-        //conf.set("dfs.namenode.kerberos.principal", "nn/_HOST@DTDREAM.COM");
-        //classpath 下有这个文件，不用设置
+        //krb5.conf 文件在环境变量里面没有用 ,必须是系统变量指定位置, pom 继承设置了
+        // window 默认会加载  C://windows/krb5.conf
         //System.setProperty("java.security.krb5.conf",projectPath+ "/target/test-classes/krb5.conf");
-        //conf.get("zhangxiping");
+        System.out.println("java.security.krb5.conf = " + System.getProperty("java.security.krb5.conf"));
         DistributedFileSystem fs = (DistributedFileSystem)FileSystem.get(conf);
         //System.out.println("*******************"+ conf.get("zhangxiping"));
         fs.delete(new Path("/a"),true);
@@ -150,17 +151,22 @@ public class Testjob {
 
     //  任务默认加载的环境变量路径  D:\project\neproject\ne-hadoop\hadoop-mapreduce-project\hadoop-mapreduce-client\hadoop-mapreduce-client-jobclient\target\classes
     //  访问router  把这里面的  fs.defaultFS 改了
+
+    // appmaster  container 报 hadoop_home 未设置 ，NM 在生成launch_container脚本，会通过白名单，添加脚本环境变量，默认的白名单没有hadoop home
+
+
+    // yarn HA webUI 重定向次数过多,手动切换rm2 主
     @Test
     public void mapreduceJob() throws Exception {
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new Configuration();
         //System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("hadoop.root.logger","INFO,stdout");
         System.setProperty("java.security.krb5.conf",projectPath+ "/target/test-classes/krb5.conf");
         conf.set("mapreduce.task.timeout","60000");
-
         conf.set("mapred.child.java.opts","-Dfile.encoding=UTF-8");
-        conf.set("yarn.app.mapreduce.am.command-opts","-Dfile.encoding=UTF-8");
+        // 想查看中间生成的临时文件 ，通过设置AM启动debug调试
+        conf.set("yarn.app.mapreduce.am.command-opts","-Dfile.encoding=UTF-8");//-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=9906
         conf.set("mapreduce.job.queuename","dev");
         System.setProperty("file.encoding","utf-8");
         Long startTs = System.currentTimeMillis();
@@ -231,7 +237,7 @@ public class Testjob {
 
     @Test
     public void testJoB() throws Exception {
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf =new Configuration();
         System.setProperty("HADOOP_USER_NAME","zhangxiping");
         System.setProperty("hadoop.root.logger","INFO,stdout");
@@ -241,13 +247,12 @@ public class Testjob {
         conf.set("mapreduce.job.queuename","root.pro");
         conf.set("mapreduce.jobhistory.address","127.0.0.1:19888");
         conf.set("mapreduce.framework.name","yarn");
-        conf.addResource(new Path("/Users/temp/yarn-site.xml"));
         String[] args = new String[] {
             "-skipcrccheck",
             "-update",
             "-m",
             String.valueOf(10),
-            "hdfs://127.0.0.1:8020/a",
+            "hdfs://127.0.0.1:8020/a/2",
             "hdfs://127.0.0.1:8020/user/zhangxiping"
 
         };
@@ -256,7 +261,7 @@ public class Testjob {
 
     @Test
     public void testJoB2() throws Exception {
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf =new Configuration();
         System.setProperty("HADOOP_USER_NAME","zhangxiping");
         System.setProperty("hadoop.root.logger","INFO,stdout");
@@ -282,7 +287,7 @@ public class Testjob {
 
     @Test
     public void testHdfsJob() throws Exception {
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new Configuration();
         conf.addResource(new Path(projectPath+ "/Users/temp/yarn-site.xml"));
         conf.set("hadoop.security.authorization","true");
@@ -306,7 +311,7 @@ public class Testjob {
 
     @Test
     public void testHdfsApi() throws Exception {
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new Configuration();
         conf.addResource(new Path(projectPath+ "/Users/temp/yarn-site.xml"));
         conf.set("hadoop.security.authorization","false");

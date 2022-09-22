@@ -14,15 +14,20 @@ import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.MiniDFSNNTopology;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
+import org.apache.hadoop.hdfs.qjournal.MiniJournalCluster;
+import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
+import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider;
 import org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer;
+import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.minikdc.MiniKdc;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.ssl.KeyStoreTestUtil;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.server.MiniYARNCluster;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
+import org.apache.hadoop.yarn.server.resourcemanager.HATestUtil;
 import org.apache.hadoop.yarn.webapp.util.WebAppUtils;
 import org.junit.Rule;
 import org.junit.Test;
@@ -32,6 +37,7 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
 import java.util.Locale;
 import java.util.Properties;
@@ -65,7 +71,7 @@ import static org.apache.hadoop.minikdc.MiniKdc.ORG_NAME;
  * datanode  启动  报ssl config文件找不到  server.location     ,test-class  目录拷贝  桌面ssl-server文件，ssl-client文件
  *
  *
- *  kinit -kt C:\Users\ZHANGX~1\AppData\Local\Temp\zhangxiping.keytab zhangxiping/127.0.0.1@CN.NET.NTES
+ *  kinit -kt C:\Users\ZHANGX~1\AppData\Local\Temp\zhangxiping.keytab zhangxiping/127.0.0.1@EXAMPLE.COM
  *
  *  拷贝 D:\project\neproject\ne-hadoop\hadoop-common-project\hadoop-minikdc\src\main\resources\ *.diff 文件   放入  test-class
  *
@@ -102,7 +108,7 @@ public class TestMiniYarnCluster {
     static String NAMESERVICE = "minidfs-ns";
     static String NN1 = "nn1";
     static String NN2 = "nn2";
-
+    //static String tmpDir = "D:\\project\\myproject\\hadoop3.3.0\\hadoop-mapreduce-project\\hadoop-mapreduce-client\\hadoop-mapreduce-client-jobclient\\target\\test-dir\\dfs";
 
     private static String prepareNMDirs(String dirType, int numDirs,int index) {
         File []dirs = new File[numDirs];
@@ -119,7 +125,7 @@ public class TestMiniYarnCluster {
         return dirsString;
     }
 
-    static Configuration getNMConf(int port,int index){
+    static Configuration getNMConf(int port,int index) throws IOException {
 
         Configuration config = new YarnConfiguration();
         // create nm-local-dirs and configure them for the nodemanager
@@ -132,16 +138,13 @@ public class TestMiniYarnCluster {
         config.setInt(YarnConfiguration.NM_PMEM_MB, config.getInt(
             YarnConfiguration.YARN_MINICLUSTER_NM_PMEM_MB,
             YarnConfiguration.DEFAULT_YARN_MINICLUSTER_NM_PMEM_MB));
-
-        config.set(YarnConfiguration.NM_ADDRESS,
-            MiniYARNCluster.getHostname() + ":0");
+        config.set(YarnConfiguration.NM_ADDRESS,"0.0.0.0:2594"+index);
+        config.set(YarnConfiguration.NM_WEBAPP_ADDRESS,
+            "0.0.0.0:804"+index);
         config.set(YarnConfiguration.NM_LOCALIZER_ADDRESS,
             MiniYARNCluster.getHostname() + ":0");
         config.set(YarnConfiguration.NM_COLLECTOR_SERVICE_ADDRESS,
             MiniYARNCluster.getHostname() + ":0");
-        WebAppUtils
-            .setNMWebAppHostNameAndPort(config,
-                MiniYARNCluster.getHostname(), 0);
 
         config.setBoolean(
             YarnConfiguration.NM_ENABLE_HARDWARE_CAPABILITY_DETECTION, false);
@@ -161,10 +164,10 @@ public class TestMiniYarnCluster {
         config.set("yarn.nodemanager.resource.memory-mb", "20480");
         config.set("yarn.nodemanager.resource.cpu-vcores", "16");
 
-        config.set("yarn.log.server.url", "http://0.0.0.0:19888/jobhistory/logs");
+        config.set("yarn.log.server.url", "http://127.0.0.1:19888/jobhistory/logs");
         config.unset("dfs.http.policy");
         config.set("yarn.node-labels.enabled","true");
-        config.set("yarn.nodemanager.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
+        config.set("yarn.nodemanager.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         config.set("yarn.nodemanager.keytab","/Users/temp/zhangxiping.keytab");
 
         return config;
@@ -181,6 +184,7 @@ public class TestMiniYarnCluster {
         conf.set("dfs.datanode.https.address","0.0.0.0:"+6102+i);
         System.setProperty("hadoop.metrics.log.file","D:\\DN"+i+"-metrics.log");
         String base_dir = projectPath+"/target/test-dir/dfs";
+        // String base_dir = tmpDir;
         StringBuilder sb = new StringBuilder();
         for (int j = 0; j < 2; ++j) {
             File dir;
@@ -228,6 +232,8 @@ public class TestMiniYarnCluster {
     }
 
     static void clearClassPath(){
+        File hdfs_site0 = new File(projectPath + "/target/classes/hdfs-site.xml");
+        hdfs_site0.delete();
         File core_site = new File(projectPath + "/target/test-classes/core-site.xml");
         core_site.delete();
         File hdfs_site = new File(projectPath + "/target/test-classes/hdfs-site.xml");
@@ -238,22 +244,39 @@ public class TestMiniYarnCluster {
         yarn_site.delete();
     }
 
+    static void clearRMClassPath(){
+        File mapRed_site = new File(projectPath + "/target/test-classes/mapred-site.xml");
+        mapRed_site.delete();
+        File yarn_site = new File(projectPath + "/target/test-classes/yarn-site.xml");
+        yarn_site.delete();
+    }
+
     static void setHdfsCommonConf( Configuration conf){
-        //conf.addResource(new Path(new File("/Users/temp/core-site.xml").getAbsolutePath()));
-        //.LoginException: null (68)
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
-        //kerborse
-        conf.set("hadoop.security.authorization","true");
-        conf.set("hadoop.security.authentication","kerberos");
         conf.set("hadoop.rpc.protection","authentication");
-        conf.set("hadoop.security.auth_to_local","RULE:[1:$1@$0](.*@CN.NET.NTES\\.CN.NET.NTES)s/.*/zhangxiping/\n"+"DEFAULT");
+        conf.set("hadoop.security.auth_to_local","RULE:[2:$1@$0](.*@EXAMPLE.COM)s/.*/zhangxiping/" +
+            "\nRULE:[1:$1@$0](.*)s/.*/zhangxiping/"+  // 跟我们公司的认证环境有冲突
+            "\nDEFAULT");
+
+        //jn
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.keytab.file","/Users/temp/zhangxiping.keytab");
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.kerberos.internal.spnego.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+
 
         // namenode
         conf.set("dfs.namenode.keytab.file","/Users/temp/zhangxiping.keytab");
-        conf.set("dfs.namenode.kerberos.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
-        conf.set("dfs.namenode.kerberos.internal.spnego.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
-        conf.set("dfs.web.authentication.kerberos.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
-        conf.set("dfs.web.authentication.kerberos.keytab","/Users/temp/zhangxiping.keytab");
+        conf.set("dfs.namenode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+
+        // web  authentication
+//        conf.set("dfs.web.authentication.kerberos.principal","HTTP/127.0.0.1@EXAMPLE.COM");
+//        conf.set("dfs.web.authentication.kerberos.keytab","/Users/temp/zhangxiping.keytab");
+//        conf.set("dfs.namenode.kerberos.internal.spnego.principal","HTTP/127.0.0.1@EXAMPLE.COM");
+//        conf.set("hadoop.http.authentication.type","kerberos");
+//        conf.set("hadoop.http.authentication.kerberos.principal","HTTP/127.0.0.1@EXAMPLE.COM");
+//        conf.set("hadoop.http.authentication.kerberos.keytab","/Users/temp/zhangxiping.keytab");
+
         conf.set("net.topology.script.file.name",projectPath + "/target/test-classes/topology_script.cmd");
         conf.set("net.topology.node.switch.mapping.impl","org.apache.hadoop.net.ScriptBasedMapping");
         conf.set("dfs.replication","3");
@@ -283,7 +306,7 @@ public class TestMiniYarnCluster {
         conf.set("ssl.server.keystore.location",projectPath + "/target/test-classes/keystore.jks");
         conf.set("dfs.data.transfer.protection","integrity");
         conf.set("dfs.datanode.keytab.file","/Users/temp/zhangxiping.keytab");
-        conf.set("dfs.datanode.kerberos.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
+        conf.set("dfs.datanode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
     }
 
     @Test
@@ -299,20 +322,36 @@ public class TestMiniYarnCluster {
         Properties kConf = MiniKdc.createConf();
         kConf.setProperty("debug","true");
         kConf.setProperty("kdc.port","2222");
-        kConf.setProperty("org.name","CN.NET");
-        kConf.setProperty("org.domain","NTES");
+        kConf.setProperty("org.name","EXAMPLE");
+        kConf.setProperty("org.domain","COM");
+        kConf.setProperty("transport","TCP");
         kdc = new MiniKdc(kConf, workDir);
         kdc.start();
 
+        conf.set("hadoop.security.authorization","true");
+        conf.set("hadoop.security.authentication","kerberos");
+        conf.set("hadoop.security.auth_to_local","RULE:[2:$1@$0](.*@EXAMPLE.COM)s/.*/zhangxiping/\n"+"DEFAULT");
+        // NN 可能依赖环境变量里面的配置
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.keytab.file","/Users/temp/zhangxiping.keytab");
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.kerberos.internal.spnego.principal","HTTP/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.qjournal.queued-edits.limit.mb","1");
+
+
         UserGroupInformation.setShouldRenewImmediatelyForTests(true);
-        String principal = "zhangxiping/127.0.0.1";
+        String [] principals = new String[]{"zhangxiping/127.0.0.1","HTTP/127.0.0.1"};
         File keytab = new File("/Users/temp/zhangxiping.keytab");
         System.out.println("============="+keytab.getAbsolutePath());
-
+        // window 默认会加载  C://windows/krb5.ini
+        FileUtils.copyFile(new File(projectPath + "/target/test-classes/krb5.conf"), new File("C:\\windows\\krb5.ini"));
         FileUtils.copyFile(new File(projectPath + "/target/test-classes/keystore.jks"), new File("/Users/temp/keystore.jks"));
         FileUtils.copyFile(new File(projectPath + "/target/test-classes/truststore.jks"), new File("/Users/temp/truststore.jks"));
 
-        kdc.createPrincipal(keytab, principal);
+        kdc.createPrincipal(keytab, principals);
+        conf.set("hadoop.http.authentication.simple.anonymous.allowed","true");
+        conf.set("hadoop.http.filter.initializers","org.apache.hadoop.security.AuthenticationFilterInitializer");
+        conf.set("hadoop.http.authentication.signature.secret.file","/Users/temp/hadoop-http-auth-signature-secret");
 
         conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/core-site.xml")));
         System.out.println("----------write success!!");
@@ -345,29 +384,84 @@ public class TestMiniYarnCluster {
     }
 
     @Test
+    public void testMiniQJM() throws Exception {
+        Configuration conf = new Configuration();
+        DefaultMetricsSystem.setMiniClusterMode(true);
+
+        conf.set("ignore.secure.ports.for.testing","true");
+        conf.set("dfs.http.policy","HTTP_ONLY");
+        conf.set("dfs.qjournal.queued-edits.limit.mb","1");
+
+        conf.set("hadoop.security.auth_to_local","RULE:[2:$1@$0](.*@EXAMPLE.COM)s/.*/zhangxiping/\n"+"DEFAULT");
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.keytab.file","/Users/temp/zhangxiping.keytab");
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.kerberos.internal.spnego.principal","HTTP/127.0.0.1@EXAMPLE.COM");
+        MiniJournalCluster journalCluster = new MiniJournalCluster.Builder(conf)
+            //.baseDir(tmpDir)
+            .format(true)
+            .build();
+        journalCluster.waitActive();
+        journalCluster.setNamenodeSharedEditsConf(NAMESERVICE);
+        URI journalURI = journalCluster.getQuorumJournalURI(NAMESERVICE);
+        System.out.println(journalURI.toString());
+        System.in.read();
+    }
+
+    @Test
     public void testHAHDFS() throws Exception {
 
         //先清理classpath配置文件
-        clearClassPath();
-
+        //clearClassPath();
+        // 测试用例里有kerberos 配置,但是环境变量里没有设置,可能会有 SIMPLE authentication is not enabled.  Available:[KERBEROS]
+        //  kerberos 加载krb5.conf /krb5.ini 文件是  sun.security.krb5.Config类逻辑,再根据配置获取kdc列表 ,kerberos 登录模块 Krb5LoginModule
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("hadoop.log.file","hdfs_ha_metrics.log");
         Configuration conf = new HdfsConfiguration();
         conf.set("fs.defaultFS","hdfs://minidfs-ns");
         conf.set("dfs.client.failover.proxy.provider.minidfs-ns","org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
-
+        conf.set(DFSConfigKeys.DFS_NAMENODE_SHARED_EDITS_DIR_KEY, "qjournal://127.0.0.1:8470;127.0.0.1:8471;127.0.0.1:8472/minidfs-ns");
+        conf.set("dfs.namenode.edits.journal-plugin.qjournal","org.apache.hadoop.hdfs.qjournal.client.QuorumJournalManager");
         setHdfsCommonConf(conf);
 
-        MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0).nameNodeHttpPort(50070)
-            .nameNodePort(8020).nnTopology(simpleHATopologyWithBasePort(9020))
-            .format(true).enableManagedDfsDirsRedundancy(false).useConfiguredTopologyMappingClass(true).build();
+        conf.set("dfs.qjournal.queued-edits.limit.mb","1");
+        conf.set("ignore.secure.ports.for.testing","true");
+        conf.set("dfs.http.policy","HTTP_ONLY");
+       // conf.set("hdfs.minidfs.basedir",tmpDir);
+        HdfsServerConstants.StartupOption SO = HdfsServerConstants.StartupOption.ROLLINGUPGRADE;
+        SO.setRollingUpgradeStartupOption("started");
+        MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf)
+            .numDataNodes(0)
+            .nameNodeHttpPort(50070)
+            //.manageNameDfsDirs(false)
+            //.manageNameDfsSharedDirs(false)
+            .nameNodePort(8020)
+            .nnTopology(simpleHATopologyWithBasePort(9020))
+            .format(true)
+            .enableManagedDfsDirsRedundancy(false)
+            .useConfiguredTopologyMappingClass(true)
+            .startupOption(SO)
+            .build();
         cluster.transitionToActive(0);
+        cluster.waitActive();
+        //cluster.shutdownNameNodes();
+
+        Configuration confNN0 = cluster.getConfiguration(0);
         initHAConf(new URI(""),conf,9020);
 
+        NameNode.initializeSharedEdits(confNN0, false);
+
+        // restart the cluster
+        cluster.restartNameNodes();
+        cluster.transitionToActive(0);
         //datanode
         conf.set("dfs.http.policy","HTTPS_ONLY");//其他服务配置可能有问题
 
         conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/core-site.xml")));
         conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
+        conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
+        conf.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
+        conf.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
 
         System.in.read();
     }
@@ -389,7 +483,7 @@ public class TestMiniYarnCluster {
 
         setHdfsCommonConf(conf);
 
-        MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0).nameNodeHttpPort(50070).nameNodePort(8020)
+        MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0).nameNodeHttpPort(50070).nameNodePort(8020)//.manageNameDfsDirs(false)
             .format(true).enableManagedDfsDirsRedundancy(false).useConfiguredTopologyMappingClass(true).build();
         // NN 不能设置
         //datanode
@@ -422,15 +516,20 @@ public class TestMiniYarnCluster {
         System.in.read();
     }
 
-
+    @Test
+    public void testZK() throws Exception {
+        TestingServer zkServer = new TestingServer(new InstanceSpec(new File("/Users/temp/zkData"), 2181, -1, -1, false, -1),true);
+        zkServer.start();
+        System.in.read();
+    }
     @Test
     public void testRM() throws Exception {
+        clearRMClassPath();
+        //Loaded properties from hadoop-metrics2-resourcemanager.properties
         System.setProperty("hadoop.log.file","ResourceManager_metrics.log");
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new Configuration();
-        System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("java.security.krb5.conf",projectPath+"/target/test-classes/krb5.conf");
-        //conf.addResource(new Path(new File("/Users/temp2/core-site.xml").getAbsolutePath()));
         conf.setBoolean(YarnConfiguration.YARN_MINICLUSTER_FIXED_PORTS, true);
         conf.setBoolean(YarnConfiguration.YARN_MINICLUSTER_USE_RPC,true);
         conf.set("yarn.nodemanager.aux-services","mapreduce_shuffle");
@@ -442,14 +541,14 @@ public class TestMiniYarnCluster {
         conf.set("yarn.node-attribute.fs-store.root-dir","/node-attribute");
 
         conf.set("yarn.resourcemanager.recovery.enabled","true");
-        conf.set("yarn.resourcemanager.store.class","org.apache.hadoop.yarn.server.resourcemanager.recovery.FileSystemRMStateStore");
+        conf.set("yarn.resourcemanager.store.class","org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore");
         conf.set("yarn.resourcemanager.fs.state-store.uri","/rmstore");
 
 
         conf.set("yarn.scheduler.capacity.resource-calculator","org.apache.hadoop.yarn.util.resource.DominantResourceCalculator");
         conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
         conf.set("yarn.scheduler.capacity.label-metrics.enable","true");
-        conf.set("yarn.resourcemanager.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
+        conf.set("yarn.resourcemanager.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("yarn.resourcemanager.keytab","/Users/temp/zhangxiping.keytab");
 
         //conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.sls.scheduler.SLSCapacityScheduler");
@@ -460,20 +559,38 @@ public class TestMiniYarnCluster {
         conf.set("mapreduce.jobhistory.address","0.0.0.0:10021");
         conf.set("mapreduce.jobhistory.webapp.address","0.0.0.0:19888");
         conf.set("yarn.nodemanager.log-aggregation.queue-monitoring-interval-seconds","10");
-
         conf.unset("dfs.http.policy");
+        int RMCount = 1;
 
+        // HA
+        conf.setBoolean(YarnConfiguration.RM_HA_ENABLED, true);
+        conf.setBoolean(YarnConfiguration.AUTO_FAILOVER_ENABLED, true);
+        conf.set(YarnConfiguration.RM_CLUSTER_ID, "test");
+        conf.set(YarnConfiguration.RM_HA_IDS, "rm1,rm2");
+        //conf.setLong(YarnConfiguration.RESOURCEMANAGER_CONNECT_RETRY_INTERVAL_MS, 2000);
+        HATestUtil.setRpcAddressForRM("rm1", 10000, conf);
+        HATestUtil.setRpcAddressForRM("rm2", 20000, conf);
+        conf.setBoolean(YarnConfiguration.YARN_MINICLUSTER_FIXED_PORTS, true);
+        conf.set("yarn.resourcemanager.zk-address", "127.0.0.1:2181");
+        RMCount = 2;
         //router
         //conf.set("fs.defaultFS","hdfs://127.0.0.1:40250");
 
-        MiniYARNCluster yrCluster =new MiniYARNCluster("test",1,0,1,1);
+        MiniYARNCluster yrCluster =new MiniYARNCluster("test",RMCount,0,1,1);
         yrCluster.init(conf);
         yrCluster.start();
-        yrCluster.getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
-        yrCluster.getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/mapred-site.xml")));
-        yrCluster.getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
-
-        conf.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
+        //不能直接调用conf.writeXml，使用yrCluster.getConfig() ,防止writeXml 失败
+        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
+        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/mapred-site.xml")));
+        //覆盖一些默认的配置,不然会报 找不到或无法加载主类 org.apache.hadoop.mapreduce.v2.app.MRAppMaster
+        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
+        //客户端设置RM主备,方便命令行操作 , 要使用hadoop3.3.0 客户端执行yarn rmadmin
+        yrCluster.getResourceManager(1).getConfig().set("yarn.resourcemanager.admin.address.rm1", "127.0.0.1:18033");
+        yrCluster.getResourceManager(1).getConfig().set("yarn.resourcemanager.admin.address.rm2","127.0.0.1:28033");
+        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
+        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/yarn-site.xml")));
+        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
+        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/yarn-site.xml")));
         System.in.read();
     }
 
@@ -487,42 +604,38 @@ public class TestMiniYarnCluster {
     public void testHS() throws Exception {
         System.setProperty("hadoop.log.file","historyServer_metrics.log");
         Configuration conf =new Configuration();
-        System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("hadoop.root.logger","DEBUG,stdout");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
-        //conf.addResource(new Path(new File("/Users/temp3/core-site.xml").getAbsolutePath()));
 
         //conf.set("dfs.http.policy","HTTPS_ONLY");//其他服务配置可能有问题
         //conf.set("yarn.https.policy","HTTP");
 
-        conf.set("mapreduce.jobhistory.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
+        conf.set("mapreduce.jobhistory.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("mapreduce.jobhistory.keytab","/Users/temp/zhangxiping.keytab");
         //conf.set("mapreduce.jobhistory.http.policy","HTTPS_ONLY");
         conf.unset("dfs.http.policy");
         System.out.println("**************** dfs.http.policy"+ conf.get("dfs.http.policy"));
-        conf.set("mapreduce.jobhistory.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
+        conf.set("mapreduce.jobhistory.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("mapreduce.jobhistory.keytab","/Users/temp/zhangxiping.keytab");
         conf.set("yarn.log-aggregation-enable","true");
 
-        conf.set("mapreduce.jobhistory.intermediate-done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done_intermediate");
-        conf.set("mapreduce.jobhistory.done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done");
+//        conf.set("mapreduce.jobhistory.intermediate-done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done_intermediate");
+//        conf.set("mapreduce.jobhistory.done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done");
 
-        JobHistoryServer historyServer = new JobHistoryServer();
-        historyServer.init(conf);
-        historyServer.start();
-        //conf.writeXml(new FileOutputStream(new File("/Users/temp/yarn-site.xml")));
+        JobHistoryServer HS = new JobHistoryServer();
+        HS.init(conf);
+        HS.start();
+
         System.in.read();
     }
 
     @Test
     public void testNM() throws Exception {
         System.setProperty("hadoop.log.file","NM_metrics.log");
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
-        //System.setProperty("HADOOP_USER_NAME","root");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
         Configuration conf = getNMConf(13562,1);
-        conf.set("yarn.nodemanager.address","0.0.0.0:25944");
         nm.init(conf);
         nm.start();
         System.in.read();
@@ -531,12 +644,10 @@ public class TestMiniYarnCluster {
     @Test
     public void testNM2() throws Exception {
         System.setProperty("hadoop.log.file","NM2_metrics.log");
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
-        //System.setProperty("HADOOP_USER_NAME","root");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
         Configuration conf = getNMConf(13563,2);
-        conf.set("yarn.nodemanager.address","0.0.0.0:25945");
         nm.init(conf);
         nm.start();
         System.in.read();
@@ -545,12 +656,10 @@ public class TestMiniYarnCluster {
     @Test
     public void testNM3() throws Exception {
         System.setProperty("hadoop.log.file","NM3_metrics.log");
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
-        //System.setProperty("HADOOP_USER_NAME","root");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
         Configuration conf = getNMConf(13564,3);
-        conf.set("yarn.nodemanager.address","0.0.0.0:25946");
         nm.init(conf);
         nm.start();
         System.in.read();
@@ -559,12 +668,11 @@ public class TestMiniYarnCluster {
     @Test
     public void testNM4() throws Exception {
         System.setProperty("hadoop.log.file","NM4_metrics.log");
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
         Configuration conf = getNMConf(13566,4);
-        conf.set("yarn.nodemanager.address","0.0.0.0:25947");
         nm.init(conf);
         nm.start();
         System.in.read();
@@ -573,22 +681,16 @@ public class TestMiniYarnCluster {
     @Test
     public void testNM5() throws Exception {
         System.setProperty("hadoop.log.file","NM5_metrics.log");
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@CN.NET.NTES","/Users/temp/zhangxiping.keytab");
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
         Configuration conf = getNMConf(13567,5);
-        conf.set("yarn.nodemanager.address","0.0.0.0:25948");
         nm.init(conf);
         nm.start();
         System.in.read();
     }
 
-    @Test
-    public void testZK() throws Exception {
-        TestingServer zkServer = new TestingServer(new InstanceSpec(new File("/Users/temp/zkData"), 2181, -1, -1, false, -1),true);
-        zkServer.start();
-        System.in.read();
-    }
+
 
 }

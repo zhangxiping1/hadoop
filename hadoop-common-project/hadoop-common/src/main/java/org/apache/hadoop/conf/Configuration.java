@@ -25,7 +25,44 @@ import com.ctc.wstx.stax.WstxInputFactory;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Charsets;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import org.apache.commons.collections.map.UnmodifiableMap;
+import org.apache.hadoop.classification.InterfaceAudience;
+import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.fs.CommonConfigurationKeys;
+import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.WritableUtils;
+import org.apache.hadoop.net.NetUtils;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.alias.CredentialProvider;
+import org.apache.hadoop.security.alias.CredentialProvider.CredentialEntry;
+import org.apache.hadoop.security.alias.CredentialProviderFactory;
+import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hadoop.util.StringInterner;
+import org.apache.hadoop.util.StringUtils;
+import org.codehaus.stax2.XMLStreamReader2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
+import javax.annotation.Nullable;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamConstants;
+import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.io.BufferedInputStream;
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -43,56 +80,31 @@ import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import javax.annotation.Nullable;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.stream.XMLInputFactory;
-import javax.xml.stream.XMLStreamConstants;
-import javax.xml.stream.XMLStreamException;
-import javax.xml.stream.XMLStreamReader;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
-
-import com.google.common.base.Charsets;
-import org.apache.commons.collections.map.UnmodifiableMap;
-import org.apache.hadoop.classification.InterfaceAudience;
-import org.apache.hadoop.classification.InterfaceStability;
-import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.CommonConfigurationKeys;
-import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.io.WritableUtils;
-import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.security.alias.CredentialProvider;
-import org.apache.hadoop.security.alias.CredentialProvider.CredentialEntry;
-import org.apache.hadoop.security.alias.CredentialProviderFactory;
-import org.apache.hadoop.util.ReflectionUtils;
-import org.apache.hadoop.util.StringInterner;
-import org.apache.hadoop.util.StringUtils;
-import org.codehaus.stax2.XMLStreamReader2;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
@@ -3008,7 +3020,10 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
                              ArrayList<Resource> resources,
                              boolean quiet) {
     if(loadDefaults) {
+      int i = 0 ;
       for (Resource resource : defaultResources) {
+//        i++;
+//        LOG.info("静态资源 size "+ defaultResources.size()+", 开始加载 第"+i+"个 defaultResources :"+resource.toString());
         loadResource(properties, resource, quiet);
       }
     }
@@ -3078,6 +3093,12 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
       reader  = (XMLStreamReader2)parse((URL)resource, isRestricted);
     } else if (resource instanceof String) {        // a CLASSPATH resource
       URL url = getResource((String)resource);
+//      if (url != null) {
+//        LOG.info("*******************  这个资源文件所在路径:\n******** " + url.toString());
+//      } else {
+//        LOG.info("*******************  这个资源文件没找到!");
+//      }
+
       reader = (XMLStreamReader2)parse(url, isRestricted);
     } else if (resource instanceof Path) {          // a file resource
       // Can't use FileSystem API or we get an infinite loop
