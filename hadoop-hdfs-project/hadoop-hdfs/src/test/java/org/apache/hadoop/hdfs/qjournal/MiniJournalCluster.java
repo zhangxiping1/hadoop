@@ -200,10 +200,9 @@ public final class MiniJournalCluster implements Closeable {
     Configuration conf = new Configuration(b.conf);
     File logDir = getStorageDir(idx);
     conf.set(DFSConfigKeys.DFS_JOURNALNODE_EDITS_DIR_KEY, logDir.toString());
-    int httpPort = b.httpPorts != null ? b.httpPorts[idx] : 0;
-    int rpcPort = b.rpcPorts != null ? b.rpcPorts[idx] : 0;
-    conf.set(DFSConfigKeys.DFS_JOURNALNODE_RPC_ADDRESS_KEY, "localhost:" + rpcPort);
-    conf.set(DFSConfigKeys.DFS_JOURNALNODE_HTTP_ADDRESS_KEY, "localhost:" + httpPort);
+    conf.set(DFSConfigKeys.DFS_JOURNALNODE_RPC_ADDRESS_KEY, "localhost:847" + idx);
+    conf.set(DFSConfigKeys.DFS_JOURNALNODE_HTTP_ADDRESS_KEY, "localhost:848" + idx);
+    conf.set(DFSConfigKeys.DFS_JOURNALNODE_HTTPS_ADDRESS_KEY, "localhost:849" + idx);
     return conf;
   }
 

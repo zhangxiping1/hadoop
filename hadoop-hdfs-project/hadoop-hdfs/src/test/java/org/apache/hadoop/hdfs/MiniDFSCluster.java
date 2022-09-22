@@ -2181,13 +2181,13 @@ public class MiniDFSCluster implements AutoCloseable {
       stopAndJoinNameNode(nnInfo.nameNode);
     }
     ShutdownHookManager.get().clearShutdownHooks();
-    if (base_dir != null) {
-      if (deleteDfsDir) {
-        FileUtil.fullyDelete(base_dir);
-      } else {
-        FileUtil.fullyDeleteOnExit(base_dir);
-      }
-    }
+//    if (base_dir != null) {
+//      if (deleteDfsDir) {
+//        FileUtil.fullyDelete(base_dir);
+//      } else {
+//        FileUtil.fullyDeleteOnExit(base_dir);
+//      }
+//    }
   }
   
   /**

@@ -29,6 +29,7 @@ import org.apache.hadoop.hdfs.server.federation.resolver.MembershipNamenodeResol
 import org.apache.hadoop.hdfs.server.federation.resolver.MultipleDestinationMountTableResolver;
 import org.apache.hadoop.hdfs.server.federation.store.driver.StateStoreDriver;
 import org.apache.hadoop.hdfs.server.federation.store.driver.impl.StateStoreZooKeeperImpl;
+import org.apache.hadoop.http.HttpServer2;
 import org.apache.hadoop.service.Service.STATE;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -124,7 +125,7 @@ public class TestRouterWithoutDFSCluster {
     routerConfig.set("dfs.federation.router.safemode.enable","false");
 
     routerConfig.set("dfs.federation.router.keytab.file","/Users/temp/zhangxiping.keytab");
-    routerConfig.set("dfs.federation.router.kerberos.principal","zhangxiping/127.0.0.1@CN.NET.NTES");
+    routerConfig.set("dfs.federation.router.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
     routerConfig.set("hadoop.security.authorization","true");
     routerConfig.set("hadoop.security.authentication","kerberos");
     routerConfig.set("dfs.block.access.token.enable","true");
@@ -187,6 +188,10 @@ public class TestRouterWithoutDFSCluster {
     zkServer.start();
     System.in.read();
   }
+
+  //静态资源位置的获取
+//  private HttpServer2(final HttpServer2.Builder b) throws IOException {
+//    final String appDir = getWebAppsPath(b.name);
 
   @Test
   public void testZKCluster() throws Exception {

@@ -143,5 +143,4 @@ public interface JournalManager extends Closeable, FormatConfirmable,
       super(reason);
     }
   }
-
 }
