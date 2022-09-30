@@ -5,8 +5,6 @@ import org.apache.curator.test.InstanceSpec;
 import org.apache.curator.test.TestingServer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.key.kms.server.MiniKMS;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
@@ -25,21 +23,16 @@ import org.apache.hadoop.minikdc.MiniKdc;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.ssl.KeyStoreTestUtil;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.hadoop.yarn.server.MiniYARNCluster;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
-import org.apache.hadoop.yarn.server.resourcemanager.HATestUtil;
-import org.apache.hadoop.yarn.webapp.util.WebAppUtils;
+import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.URI;
-import java.util.Locale;
 import java.util.Properties;
 
 
@@ -49,51 +42,25 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_DATANODE_HOST_NAME_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_HA_NAMENODES_KEY_PREFIX;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY;
 import static org.apache.hadoop.hdfs.server.common.Util.fileAsURI;
-import static org.apache.hadoop.minikdc.MiniKdc.ORG_DOMAIN;
-import static org.apache.hadoop.minikdc.MiniKdc.ORG_NAME;
 
 
 /**
- * 还需要修改  MiniDFSCluster   1455  conf.set("dfs.http.policy","HTTPS_ONLY");
  *
- *  1506  // Set up datanode address
- *       conf.set("dfs.datanode.address","0.0.0.0:"+6100+i);
- *       conf.set("dfs.datanode.http.address","0.0.0.0:"+6101+i);
- *       conf.set("dfs.datanode.https.address","0.0.0.0:"+6102+i);
- *       setupDatanodeAddress(dnConf, setupHostsFile, checkDataNodeAddrConfig);
+ * datanode ssl 配置 https://blog.csdn.net/anxia5150/article/details/101966285
  *
+ * webapps/hdfs  not found   , 在D:\project\neproject\3\ne-hadoop\  执行  mvn clean package -Dmaven.javadoc.skip=true -Pdist -DskipTests
  *
- * 拷贝  KDC 类 至  D:\project\neproject\ne-hadoop\hadoop-mapreduce-project\hadoop-mapreduce-client\hadoop-mapreduce-client-jobclient\src\test\java\org\apache\hadoop\mapreduce\v2\MiniKdc.java
+ * TestAclsEndToEnd  报 符号找不到   运行一下这里面的测试用例
  *
- * "ssl.server.keystore.location","/Users/tempproject\\neproject\\ne-hadoop\\keystore.jks"
+ * import org.apache.hadoop.minikdc.KerberosSecurityTestcase;    minikdc 找不到  运行一下  TestMiniKdc.testKeytabGen
  *
- * https://blog.csdn.net/anxia5150/article/details/101966285
- * datanode  启动  报ssl config文件找不到  server.location     ,test-class  目录拷贝  桌面ssl-server文件，ssl-client文件
- *
- *
- *  kinit -kt C:\Users\ZHANGX~1\AppData\Local\Temp\zhangxiping.keytab zhangxiping/127.0.0.1@EXAMPLE.COM
- *
- *  拷贝 D:\project\neproject\ne-hadoop\hadoop-common-project\hadoop-minikdc\src\main\resources\ *.diff 文件   放入  test-class
- *
- *  webapps/hdfs  not found   , 在D:\project\neproject\3\ne-hadoop\  执行  mvn clean package -Dmaven.javadoc.skip=true -Pdist -DskipTests
- *
- *
- *  TestAclsEndToEnd  报 符号找不到   运行一下这里面的测试用例
- *
- *  import org.apache.hadoop.minikdc.KerberosSecurityTestcase;    minikdc 找不到  运行一下  TestMiniKdc.testKeytabGen
- *
- *  编译   使用  jdk  1.8
- *
- *  idea  generated-sources     不生效   右侧 maven reload
+ * idea  generated-sources    不生效   右侧 maven reload
  *
  * java.lang.UnsatisfiedLinkError: org.apache.hadoop.io.nativeio.NativeIO$POSIX.stat(Ljava/lang/String;)Lorg/apache/hadoop/io/nativeio/NativeIO$POSIX$Stat;
  * Edit configuration  -》  PATH=D:\project\neproject\3.3.0\ne-hadoop\hadoop-common-project\hadoop-common\target\bin;%PATH%
  *
- *
  * for  mac
- *
  * Native_lib    或     Secure IO is not possible without native code extensions
- *
  * 拷贝  hadoop-dist  target/lib/native    /Users/zhangxiping/Library/Java/Extensions
  *
  */
@@ -142,9 +109,9 @@ public class TestMiniYarnCluster {
         config.set(YarnConfiguration.NM_WEBAPP_ADDRESS,
             "0.0.0.0:804"+index);
         config.set(YarnConfiguration.NM_LOCALIZER_ADDRESS,
-            MiniYARNCluster.getHostname() + ":0");
+            "0.0.0.0:0");
         config.set(YarnConfiguration.NM_COLLECTOR_SERVICE_ADDRESS,
-            MiniYARNCluster.getHostname() + ":0");
+            "0.0.0.0:0");
 
         config.setBoolean(
             YarnConfiguration.NM_ENABLE_HARDWARE_CAPABILITY_DETECTION, false);
@@ -203,8 +170,6 @@ public class TestMiniYarnCluster {
 
     static Configuration initHAConf(URI journalURI, Configuration conf,
                                     int basePort) {
-        //        conf.set(DFSConfigKeys.DFS_NAMENODE_SHARED_EDITS_DIR_KEY,
-        //            journalURI.toString());
 
         String address1 = "127.0.0.1:" + basePort;
         String address2 = "127.0.0.1:" + (basePort + 2);
@@ -309,6 +274,64 @@ public class TestMiniYarnCluster {
         conf.set("dfs.datanode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
     }
 
+    static Configuration getRMConf(Configuration conf, int index){
+
+        //Loaded properties from hadoop-metrics2-resourcemanager.properties
+        System.setProperty("hadoop.log.file","ResourceManager"+index+"_metrics.log");
+        System.setProperty("java.security.krb5.conf",projectPath+"/target/test-classes/krb5.conf");
+        //不设置会提示MRAppMaster 类找不到
+        conf.setBoolean("yarn.minicluster.use-rpc", true);
+        conf.setBoolean("yarn.is.minicluster", true);
+
+        conf.setBoolean(YarnConfiguration.RM_HA_ENABLED, true);
+        conf.setBoolean(YarnConfiguration.AUTO_FAILOVER_ENABLED, true);
+
+        conf.set("yarn.resourcemanager.cluster-id", "test");
+        conf.set("yarn.resourcemanager.webapp.address.rm2","0.0.0.0:28088");
+        conf.set("yarn.resourcemanager.webapp.address.rm1","0.0.0.0:18088");
+        conf.set("yarn.resourcemanager.ha.rm-ids","rm1,rm2");
+        conf.set("yarn.resourcemanager.address.rm2","0.0.0.0:28032");
+        conf.set("yarn.resourcemanager.address.rm1","0.0.0.0:18032");
+        conf.set("yarn.resourcemanager.scheduler.address.rm2","0.0.0.0:28030");
+        conf.set("yarn.resourcemanager.scheduler.address.rm1","0.0.0.0:18030");
+        conf.set("yarn.resourcemanager.ha.id","rm"+index);
+        conf.set("yarn.resourcemanager.resource-tracker.address.rm2","0.0.0.0:28031");
+        conf.set("yarn.resourcemanager.resource-tracker.address.rm1","0.0.0.0:18031");
+        conf.set("yarn.resourcemanager.admin.address.rm2","127.0.0.1:28033");
+        conf.set("yarn.resourcemanager.admin.address.rm1","127.0.0.1:18033");
+
+        conf.set("yarn.nodemanager.aux-services","mapreduce_shuffle");
+        conf.set("yarn.nodemanager.aux-services.mapreduce_shuffle.class","org.apache.hadoop.mapred.ShuffleHandler");
+
+        conf.set("mapreduce.framework.name","yarn");
+
+        conf.set("yarn.node-labels.enabled","true");
+        conf.set("yarn.node-labels.fs-store.root-dir","/lable");
+        conf.set("yarn.node-attribute.fs-store.root-dir","/node-attribute");
+
+        conf.set("yarn.resourcemanager.recovery.enabled","true");
+        conf.set("yarn.resourcemanager.store.class","org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore");
+        conf.set("yarn.resourcemanager.fs.state-store.uri","/rmstore");
+
+        conf.set("yarn.scheduler.capacity.resource-calculator","org.apache.hadoop.yarn.util.resource.DominantResourceCalculator");
+        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
+        conf.set("yarn.scheduler.capacity.label-metrics.enable","true");
+        conf.set("yarn.resourcemanager.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("yarn.resourcemanager.keytab","/Users/temp/zhangxiping.keytab");
+
+        //conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.sls.scheduler.SLSCapacityScheduler");
+        //conf.set("yarn.resourcemanager.webapp.address","127.0.0.1:8088");
+        conf.set("yarn.log-aggregation-enable","true");
+        conf.set("yarn.log-aggregation.file-formats","TFile");
+        conf.set("yarn.log-aggregation.file-controller.TFile.class","org.apache.hadoop.yarn.logaggregation.filecontroller.tfile.LogAggregationTFileController");
+        conf.set("mapreduce.jobhistory.address","0.0.0.0:10021");
+        conf.set("mapreduce.jobhistory.webapp.address","0.0.0.0:19888");
+        conf.set("yarn.nodemanager.log-aggregation.queue-monitoring-interval-seconds","10");
+        conf.unset("dfs.http.policy");
+        conf.set("yarn.resourcemanager.zk-address", "127.0.0.1:2181");
+        return conf;
+    }
+
     @Test
     public void testKDC() throws Exception {
         System.setProperty("hadoop.log.file","KDC.log");
@@ -337,7 +360,6 @@ public class TestMiniYarnCluster {
         conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("dfs.journalnode.kerberos.internal.spnego.principal","HTTP/127.0.0.1@EXAMPLE.COM");
         conf.set("dfs.qjournal.queued-edits.limit.mb","1");
-
 
         UserGroupInformation.setShouldRenewImmediatelyForTests(true);
         String [] principals = new String[]{"zhangxiping/127.0.0.1","HTTP/127.0.0.1"};
@@ -456,10 +478,11 @@ public class TestMiniYarnCluster {
         cluster.transitionToActive(0);
         //datanode
         conf.set("dfs.http.policy","HTTPS_ONLY");//其他服务配置可能有问题
+        conf.set("dfs.replication","3");
 
         conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/core-site.xml")));
         conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
-        conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
+        //conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
         conf.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
         conf.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
 
@@ -523,81 +546,44 @@ public class TestMiniYarnCluster {
         System.in.read();
     }
     @Test
-    public void testRM() throws Exception {
+    public void testRM1() throws Exception {
         clearRMClassPath();
-        //Loaded properties from hadoop-metrics2-resourcemanager.properties
-        System.setProperty("hadoop.log.file","ResourceManager_metrics.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
-        Configuration conf = new Configuration();
-        System.setProperty("java.security.krb5.conf",projectPath+"/target/test-classes/krb5.conf");
-        conf.setBoolean(YarnConfiguration.YARN_MINICLUSTER_FIXED_PORTS, true);
-        conf.setBoolean(YarnConfiguration.YARN_MINICLUSTER_USE_RPC,true);
-        conf.set("yarn.nodemanager.aux-services","mapreduce_shuffle");
-        conf.set("yarn.nodemanager.aux-services.mapreduce_shuffle.class","org.apache.hadoop.mapred.ShuffleHandler");
-        conf.set("mapreduce.framework.name","yarn");
-        conf.set("yarn.resourcemanager.ha.enabled","false");
-        conf.set("yarn.node-labels.enabled","true");
-        conf.set("yarn.node-labels.fs-store.root-dir","/lable");
-        conf.set("yarn.node-attribute.fs-store.root-dir","/node-attribute");
+        Configuration conf = new YarnConfiguration();
+        ResourceManager rm1 = new ResourceManager();
+        rm1.init(getRMConf(conf,1));
+        rm1.start();
+        System.in.read();
+    }
 
-        conf.set("yarn.resourcemanager.recovery.enabled","true");
-        conf.set("yarn.resourcemanager.store.class","org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore");
-        conf.set("yarn.resourcemanager.fs.state-store.uri","/rmstore");
+    @Test
+    public void testRM2() throws Exception {
 
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
+        Configuration conf = new YarnConfiguration();
+        ResourceManager rm1 = new ResourceManager();
+        rm1.init(getRMConf(conf,2));
+        rm1.start();
+        Thread.sleep(3000);
+        Configuration config = rm1.getConfig();
 
-        conf.set("yarn.scheduler.capacity.resource-calculator","org.apache.hadoop.yarn.util.resource.DominantResourceCalculator");
-        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
-        conf.set("yarn.scheduler.capacity.label-metrics.enable","true");
-        conf.set("yarn.resourcemanager.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
-        conf.set("yarn.resourcemanager.keytab","/Users/temp/zhangxiping.keytab");
-
-        //conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.sls.scheduler.SLSCapacityScheduler");
-        //conf.set("yarn.resourcemanager.webapp.address","127.0.0.1:8088");
-        conf.set("yarn.log-aggregation-enable","true");
-        conf.set("yarn.log-aggregation.file-formats","TFile");
-        conf.set("yarn.log-aggregation.file-controller.TFile.class","org.apache.hadoop.yarn.logaggregation.filecontroller.tfile.LogAggregationTFileController");
-        conf.set("mapreduce.jobhistory.address","0.0.0.0:10021");
-        conf.set("mapreduce.jobhistory.webapp.address","0.0.0.0:19888");
-        conf.set("yarn.nodemanager.log-aggregation.queue-monitoring-interval-seconds","10");
-        conf.unset("dfs.http.policy");
-        int RMCount = 1;
-
-        // HA
-        conf.setBoolean(YarnConfiguration.RM_HA_ENABLED, true);
-        conf.setBoolean(YarnConfiguration.AUTO_FAILOVER_ENABLED, true);
-        conf.set(YarnConfiguration.RM_CLUSTER_ID, "test");
-        conf.set(YarnConfiguration.RM_HA_IDS, "rm1,rm2");
-        //conf.setLong(YarnConfiguration.RESOURCEMANAGER_CONNECT_RETRY_INTERVAL_MS, 2000);
-        HATestUtil.setRpcAddressForRM("rm1", 10000, conf);
-        HATestUtil.setRpcAddressForRM("rm2", 20000, conf);
-        conf.setBoolean(YarnConfiguration.YARN_MINICLUSTER_FIXED_PORTS, true);
-        conf.set("yarn.resourcemanager.zk-address", "127.0.0.1:2181");
-        RMCount = 2;
-        //router
-        //conf.set("fs.defaultFS","hdfs://127.0.0.1:40250");
-
-        MiniYARNCluster yrCluster =new MiniYARNCluster("test",RMCount,0,1,1);
-        yrCluster.init(conf);
-        yrCluster.start();
         //不能直接调用conf.writeXml，使用yrCluster.getConfig() ,防止writeXml 失败
-        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
-        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/mapred-site.xml")));
-        //覆盖一些默认的配置,不然会报 找不到或无法加载主类 org.apache.hadoop.mapreduce.v2.app.MRAppMaster
-        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
-        //客户端设置RM主备,方便命令行操作 , 要使用hadoop3.3.0 客户端执行yarn rmadmin
-        yrCluster.getResourceManager(1).getConfig().set("yarn.resourcemanager.admin.address.rm1", "127.0.0.1:18033");
-        yrCluster.getResourceManager(1).getConfig().set("yarn.resourcemanager.admin.address.rm2","127.0.0.1:28033");
-        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
-        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/yarn-site.xml")));
-        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
-        yrCluster.getResourceManager(1).getConfig().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/yarn-site.xml")));
+        config.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
+        config.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/mapred-site.xml")));
+        //testjob 最后加载的资源文件是hdfs-site文件,这个配置是mared-default配置的local,会覆盖yarn-site的配置,需要覆盖
+        config.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
+        //客户端设置RM主备,方便命令行操作 , 要使用hadoop3.3.0 客户端执行yarn rmadmin ,单测试用例没有这个问题
+        //config.set("yarn.resourcemanager.admin.address.rm1", "127.0.0.1:18033");
+        //config.set("yarn.resourcemanager.admin.address.rm2","127.0.0.1:28033");
+        config.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/yarn-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/yarn-site.xml")));
+        System.out.println("*********************** 文件写入成功!");
         System.in.read();
     }
 
     /**
-     * history 查不到连接是  mapreduce.jobhistory.intermediate-done-dir， mapreduce.jobhistory.done-dir 问题
-     *
-     * 点击yarn webui 不能正常跳转  conf.set("mapreduce.jobhistory.webapp.address","0.0.0.0:19888");
      *
      */
     @Test
@@ -625,7 +611,6 @@ public class TestMiniYarnCluster {
         JobHistoryServer HS = new JobHistoryServer();
         HS.init(conf);
         HS.start();
-
         System.in.read();
     }
 
@@ -690,7 +675,4 @@ public class TestMiniYarnCluster {
         nm.start();
         System.in.read();
     }
-
-
-
 }

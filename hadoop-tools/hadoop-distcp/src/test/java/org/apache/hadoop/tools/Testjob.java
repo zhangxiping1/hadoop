@@ -2,6 +2,7 @@ package org.apache.hadoop.tools;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.ContentSummary;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -26,6 +27,7 @@ import org.junit.Test;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.StringTokenizer;
 
@@ -164,9 +166,10 @@ public class Testjob {
         System.setProperty("hadoop.root.logger","INFO,stdout");
         System.setProperty("java.security.krb5.conf",projectPath+ "/target/test-classes/krb5.conf");
         conf.set("mapreduce.task.timeout","60000");
+        conf.set("dfs.replication","3");
         conf.set("mapred.child.java.opts","-Dfile.encoding=UTF-8");
         // 想查看中间生成的临时文件 ，通过设置AM启动debug调试
-        conf.set("yarn.app.mapreduce.am.command-opts","-Dfile.encoding=UTF-8");//-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=9906
+        conf.set("yarn.app.mapreduce.am.command-opts","-Dfile.encoding=UTF-8 ");//-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=9906
         conf.set("mapreduce.job.queuename","dev");
         System.setProperty("file.encoding","utf-8");
         Long startTs = System.currentTimeMillis();
@@ -313,24 +316,37 @@ public class Testjob {
     public void testHdfsApi() throws Exception {
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new Configuration();
-        conf.addResource(new Path(projectPath+ "/Users/temp/yarn-site.xml"));
-        conf.set("hadoop.security.authorization","false");
-        conf.set("hadoop.security.authentication","simple");
+
         conf.set("ipc.client.rpc-timeout.ms","120000");
         conf.set("ipc.ping.interval","120000");
         conf.set("ipc.client.fallback-to-simple-auth-allowed","true");
 
-        conf.set("dfs.namenode.kerberos.principal", "nn/_HOST@DTDREAM.COM");
         System.setProperty("java.security.krb5.conf",projectPath+ "/target/test-classes/krb5.conf");
         DistributedFileSystem fs = (DistributedFileSystem)FileSystem.get(conf);
-        createFile(fs,"D:\\core-site.xml",new Path("/"+System.currentTimeMillis()+".txt"));
-
+        //getFile(fs,new Path("/a/1"));
+        createFile(fs,new Path("/"+System.currentTimeMillis()+".txt"));
     }
 
     static void createFile(FileSystem fs, Path f) throws IOException {
         DataOutputStream a_out = fs.create(f);
         a_out.writeBytes("test test  test  test  something");
         a_out.close();
+    }
+
+    static void getFile(FileSystem fs, Path f) throws IOException {
+        FSDataInputStream in = fs.open(f);
+        byte buf[] = new byte[1024];
+        int bytesRead = in.read(buf);
+        String path = projectPath+ "/target/tmp/"+System.currentTimeMillis()+".txt";
+        FileOutputStream out = new FileOutputStream(path);
+        System.out.println("************path :"+path);
+        while (bytesRead >= 0) {
+            out.write(buf, 0, bytesRead);
+            bytesRead = in.read(buf);
+        }
+        out.close();
+        in.close();
+
     }
 
     static void createFile(FileSystem fs, String src,Path f) throws IOException {
@@ -343,6 +359,7 @@ public class Testjob {
             bytesRead = in.read(buf);
         }
         a_out.close();
+        in.close();
     }
 
     @Test
