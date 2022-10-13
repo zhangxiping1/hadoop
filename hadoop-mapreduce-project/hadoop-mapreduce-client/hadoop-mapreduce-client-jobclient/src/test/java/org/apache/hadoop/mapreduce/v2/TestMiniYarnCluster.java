@@ -1,12 +1,19 @@
 package org.apache.hadoop.mapreduce.v2;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import org.apache.commons.io.FileUtils;
 import org.apache.curator.test.InstanceSpec;
 import org.apache.curator.test.TestingServer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.key.kms.server.MiniKMS;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
+import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
@@ -14,7 +21,9 @@ import org.apache.hadoop.hdfs.MiniDFSNNTopology;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
 import org.apache.hadoop.hdfs.qjournal.MiniJournalCluster;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
+import org.apache.hadoop.hdfs.server.common.Util;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
+import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider;
 import org.apache.hadoop.mapreduce.v2.hs.JobHistoryServer;
@@ -22,6 +31,7 @@ import org.apache.hadoop.metrics2.lib.DefaultMetricsSystem;
 import org.apache.hadoop.minikdc.MiniKdc;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.ssl.KeyStoreTestUtil;
+import org.apache.hadoop.util.ExitUtil;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
 import org.apache.hadoop.yarn.server.nodemanager.NodeManager;
 import org.apache.hadoop.yarn.server.resourcemanager.ResourceManager;
@@ -33,6 +43,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Properties;
 
 
@@ -40,6 +53,7 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_BLOCKREPORT_INITIAL_DELAY
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_DATANODE_DATA_DIR_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_DATANODE_HOST_NAME_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_HA_NAMENODES_KEY_PREFIX;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_CHECKPOINT_DIR_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_RPC_ADDRESS_KEY;
 import static org.apache.hadoop.hdfs.server.common.Util.fileAsURI;
 
@@ -215,6 +229,8 @@ public class TestMiniYarnCluster {
         File yarn_site = new File(projectPath + "/target/test-classes/yarn-site.xml");
         yarn_site.delete();
     }
+
+
 
     static void setHdfsCommonConf( Configuration conf){
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
@@ -430,93 +446,94 @@ public class TestMiniYarnCluster {
         System.in.read();
     }
 
-    @Test
-    public void testHAHDFS() throws Exception {
-
-        //先清理classpath配置文件
-        //clearClassPath();
-        // 测试用例里有kerberos 配置,但是环境变量里没有设置,可能会有 SIMPLE authentication is not enabled.  Available:[KERBEROS]
-        //  kerberos 加载krb5.conf /krb5.ini 文件是  sun.security.krb5.Config类逻辑,再根据配置获取kdc列表 ,kerberos 登录模块 Krb5LoginModule
-        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
-        System.setProperty("hadoop.log.file","hdfs_ha_metrics.log");
-        Configuration conf = new HdfsConfiguration();
-        conf.set("fs.defaultFS","hdfs://minidfs-ns");
+    static Configuration setHdfsHAConf(Configuration conf,int index ,boolean format) throws IOException {
         conf.set("dfs.client.failover.proxy.provider.minidfs-ns","org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
-        conf.set(DFSConfigKeys.DFS_NAMENODE_SHARED_EDITS_DIR_KEY, "qjournal://127.0.0.1:8470;127.0.0.1:8471;127.0.0.1:8472/minidfs-ns");
-        conf.set("dfs.namenode.edits.journal-plugin.qjournal","org.apache.hadoop.hdfs.qjournal.client.QuorumJournalManager");
-        setHdfsCommonConf(conf);
+        conf.set("dfs.nameservices","minidfs-ns");
+        conf.set("fs.defaultFS","hdfs://minidfs-ns");
+        conf.set("dfs.nameservice.id","minidfs-ns");
+        conf.set("dfs.ha.namenodes.minidfs-ns","nn1,nn2");
+        conf.set("dfs.namenode.rpc-address.minidfs-ns.nn1","127.0.0.1:9020");
+        conf.set("dfs.namenode.rpc-address.minidfs-ns.nn2","127.0.0.1:9030");
 
-        conf.set("dfs.qjournal.queued-edits.limit.mb","1");
-        conf.set("ignore.secure.ports.for.testing","true");
-        conf.set("dfs.http.policy","HTTP_ONLY");
-       // conf.set("hdfs.minidfs.basedir",tmpDir);
-        HdfsServerConstants.StartupOption SO = HdfsServerConstants.StartupOption.ROLLINGUPGRADE;
-        SO.setRollingUpgradeStartupOption("started");
-        MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf)
-            .numDataNodes(0)
-            .nameNodeHttpPort(50070)
-            //.manageNameDfsDirs(false)
-            //.manageNameDfsSharedDirs(false)
-            .nameNodePort(8020)
-            .nnTopology(simpleHATopologyWithBasePort(9020))
-            .format(true)
-            .enableManagedDfsDirsRedundancy(false)
-            .useConfiguredTopologyMappingClass(true)
-            .startupOption(SO)
-            .build();
-        cluster.transitionToActive(0);
-        cluster.waitActive();
-        //cluster.shutdownNameNodes();
+        conf.set("dfs.namenode.http-address.minidfs-ns.nn1","127.0.0.1:50070");
+        conf.set("dfs.namenode.http-address.minidfs-ns.nn2","127.0.0.1:50080");
+        conf.set("dfs.namenode.shared.edits.dir", "qjournal://127.0.0.1:8470;127.0.0.1:8471;127.0.0.1:8472/minidfs-ns");
 
-        Configuration confNN0 = cluster.getConfiguration(0);
-        initHAConf(new URI(""),conf,9020);
+        conf.set("dfs.ha.namenode.id","nn"+index);
+        conf.set("dfs.namenode.name.dir","file:/D:/project/neproject/3.3.0/ne-hadoop/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-jobclient/target/test-dir/dfs/name"+index);
+        conf.set("dfs.namenode.checkpoint.dir","file:/D:/project/neproject/3.3.0/ne-hadoop/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-jobclient/target/test-dir/dfs/namesecondary"+index);
+        conf.set("ha.zookeeper.quorum","127.0.0.1:2181");
+        conf.set("dfs.ha.automatic-failover.enabled","true");
+        Collection<URI> namespaceDirs = FSNamesystem.getNamespaceDirs(conf);
+        if (format) {
+            // delete the existing namespaces
+            for (URI nameDirUri : namespaceDirs) {
+                File nameDir = new File(nameDirUri);
+                if (nameDir.exists() && !FileUtil.fullyDelete(nameDir)) {
+                    throw new IOException("Could not fully delete " + nameDir);
+                }
+            }
+            // delete the checkpoint directories, if they exist
+            Collection<URI> checkpointDirs = Util.stringCollectionAsURIs(conf
+                .getTrimmedStringCollection(DFS_NAMENODE_CHECKPOINT_DIR_KEY));
+            for (URI checkpointDirUri : checkpointDirs) {
+                File checkpointDir = new File(checkpointDirUri);
+                if (checkpointDir.exists() && !FileUtil.fullyDelete(checkpointDir)) {
+                    throw new IOException("Could not fully delete " + checkpointDir);
+                }
+            }
+        }
 
-        NameNode.initializeSharedEdits(confNN0, false);
-
-        // restart the cluster
-        cluster.restartNameNodes();
-        cluster.transitionToActive(0);
-        //datanode
-        conf.set("dfs.http.policy","HTTPS_ONLY");//其他服务配置可能有问题
-        conf.set("dfs.replication","3");
-
-        conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/core-site.xml")));
-        conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
-        //conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
-        conf.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
-        conf.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
-
-        System.in.read();
+        if (index == 1 && format) {
+            HdfsServerConstants.StartupOption.FORMAT.setClusterId("minidfs-ns");
+            DFSTestUtil.formatNameNode(conf);
+        }
+        return conf;
     }
 
-    /** file:/D:/project/neproject/ne-hadoop/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-jobclient/target/test-classes/core-site.xml
-     没有   file:/D:/project/neproject/ne-hadoop/hadoop-mapreduce-project/hadoop-mapreduce-client/hadoop-mapreduce-client-jobclient/target/classes/core-site.xml
-     没有   file:/D:/project/neproject/ne-hadoop/hadoop-yarn-project/hadoop-yarn/hadoop-yarn-server/hadoop-yarn-server-resourcemanager/target/test-classes/core-site.xml
-     没有   file:/D:/project/neproject/ne-hadoop/hadoop-yarn-project/hadoop-yarn/hadoop-yarn-server/hadoop-yarn-server-tests/target/test-classes/core-site.xml
-     没有   file:/D:/project/neproject/ne-hadoop/hadoop-common-project/hadoop-common/target/test-classes/core-site.xml
-     **/
+
+
     @Test
-    public void testNOHAHDFS() throws Exception {
-        //先清理classpath配置文件
-        clearClassPath();
-
-        System.setProperty("hadoop.log.file","hdfs_metrics.log");
+    public void testNN1() throws Exception {
+        clearRMClassPath();
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new HdfsConfiguration();
-        conf.set("fs.defaultFS","hdfs://127.0.0.1:8020");
-
         setHdfsCommonConf(conf);
+        DefaultMetricsSystem.setMiniClusterMode(true);
+        NameNode nn1 =  NameNode.createNameNode(new String[] {}, setHdfsHAConf(conf,1,true));
+        nn1.getRpcServer().transitionToActive(
+            new HAServiceProtocol.StateChangeRequestInfo(HAServiceProtocol.RequestSource.REQUEST_BY_USER_FORCED));
+        System.in.read();
+    }
 
-        MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).numDataNodes(0).nameNodeHttpPort(50070).nameNodePort(8020)//.manageNameDfsDirs(false)
-            .format(true).enableManagedDfsDirsRedundancy(false).useConfiguredTopologyMappingClass(true).build();
-        // NN 不能设置
-        //datanode
-        conf.set("dfs.http.policy","HTTPS_ONLY");//其他服务配置可能有问题
-
-        conf.writeXml(new FileOutputStream(new File(projectPath+"/target/test-classes/core-site.xml")));
-        conf.writeXml(new FileOutputStream(new File(projectPath+"/target/test-classes/hdfs-site.xml")));
+    @Test
+    public void testNN2() throws Exception {
+        clearRMClassPath();
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
+        Configuration conf = new HdfsConfiguration();
+        setHdfsCommonConf(conf);
+        DefaultMetricsSystem.setMiniClusterMode(true);
+        ExitUtil.disableSystemExit();
+        //同步主NN元数据结构
+        try {
+            NameNode.createNameNode(new String[] {"-bootstrapStandby"}, setHdfsHAConf(conf,2,true));
+        } catch (Exception e){
+            System.out.println("****************************  bootstrapStandby");
+        }
+        NameNode nn2 = NameNode.createNameNode(new String[] {}, conf);
+        conf.set("fs.defaultFS","hdfs://minidfs-ns");
+        nn2.getConf().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/core-site.xml")));
+        nn2.getConf().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
+        //conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
+        nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/hdfs-site.xml")));
+        nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
+        nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/hdfs-site.xml")));
+        nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
 
         System.in.read();
     }
+
+
 
     @Test
     public void DN1() throws Exception {
@@ -605,8 +622,8 @@ public class TestMiniYarnCluster {
         conf.set("mapreduce.jobhistory.keytab","/Users/temp/zhangxiping.keytab");
         conf.set("yarn.log-aggregation-enable","true");
 
-//        conf.set("mapreduce.jobhistory.intermediate-done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done_intermediate");
-//        conf.set("mapreduce.jobhistory.done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done");
+        //conf.set("mapreduce.jobhistory.intermediate-done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done_intermediate");
+        //conf.set("mapreduce.jobhistory.done-dir","${yarn.app.mapreduce.am.staging-dir}/history/done");
 
         JobHistoryServer HS = new JobHistoryServer();
         HS.init(conf);
