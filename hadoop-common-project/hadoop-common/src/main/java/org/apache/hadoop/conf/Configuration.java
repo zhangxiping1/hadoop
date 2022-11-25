@@ -3021,9 +3021,10 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
                              boolean quiet) {
     if(loadDefaults) {
       int i = 0 ;
+//      LOG.info("静态资源 size :"+ defaultResources.size());
       for (Resource resource : defaultResources) {
 //        i++;
-//        LOG.info("静态资源 size "+ defaultResources.size()+", 开始加载 第"+i+"个 defaultResources :"+resource.toString());
+//        LOG.info("开始加载 第"+i+"/"+defaultResources.size()+" 个 defaultResources :"+resource.toString());
         loadResource(properties, resource, quiet);
       }
     }

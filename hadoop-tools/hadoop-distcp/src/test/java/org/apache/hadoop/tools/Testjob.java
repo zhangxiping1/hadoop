@@ -158,6 +158,11 @@ public class Testjob {
 
 
     // yarn HA webUI 重定向次数过多,手动切换rm2 主
+
+    //加载core-site  路径
+    //******** file:/D:/project/neproject/3.3.0/ne-hadoop/hadoop-common-project/hadoop-common/target/classes/core-default.xml
+    // 删掉  ******** file:/D:/project/neproject/3.3.0/ne-hadoop/hadoop-tools/hadoop-distcp/target/classes/core-site.xml
+
     @Test
     public void mapreduceJob() throws Exception {
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
@@ -324,7 +329,7 @@ public class Testjob {
         System.setProperty("java.security.krb5.conf",projectPath+ "/target/test-classes/krb5.conf");
         DistributedFileSystem fs = (DistributedFileSystem)FileSystem.get(conf);
         //getFile(fs,new Path("/a/1"));
-        createFile(fs,new Path("/"+System.currentTimeMillis()+".txt"));
+        createFile(fs,new Path("/key1/"+System.currentTimeMillis()+".txt"));
     }
 
     static void createFile(FileSystem fs, Path f) throws IOException {

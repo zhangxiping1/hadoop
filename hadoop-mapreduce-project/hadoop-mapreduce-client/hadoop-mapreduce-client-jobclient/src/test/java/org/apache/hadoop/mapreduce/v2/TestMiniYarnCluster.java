@@ -158,7 +158,8 @@ public class TestMiniYarnCluster {
         Configuration conf = new HdfsConfiguration();
         conf.set(DFS_DATANODE_HOST_NAME_KEY, "127.0.0.1");
         conf.setLong(DFS_BLOCKREPORT_INITIAL_DELAY_KEY, 0);
-        conf.set("dfs.http.policy","HTTPS_ONLY");
+        conf.set("dfs.http.policy","HTTP_ONLY");
+        conf.set("ignore.secure.ports.for.testing","true");
         conf.set("dfs.datanode.address","0.0.0.0:"+6100+i);
         conf.set(" dfs.datanode.ipc.address","0.0.0.0:"+987+i);
         conf.set("dfs.datanode.http.address","0.0.0.0:"+6101+i);
