@@ -506,10 +506,7 @@ public class QueueMetrics implements MetricsSource {
    * @param limit resource limit
    */
   public void setAvailableResourcesToQueue(String partition, Resource limit) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      setAvailableResources(limit);
-    }
-
+    setAvailableResources(limit);
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
     if (partitionQueueMetrics != null) {
       partitionQueueMetrics.setAvailableResources(limit);
@@ -559,11 +556,9 @@ public class QueueMetrics implements MetricsSource {
    */
   public void setAvailableResourcesToUser(String partition, String user,
       Resource limit) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      QueueMetrics userMetrics = getUserMetrics(user);
-      if (userMetrics != null) {
-        userMetrics.setAvailableResources(limit);
-      }
+    QueueMetrics userMetrics = getUserMetrics(user);
+    if (userMetrics != null) {
+      userMetrics.setAvailableResources(limit);
     }
 
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
@@ -588,9 +583,7 @@ public class QueueMetrics implements MetricsSource {
   public void incrPendingResources(String partition, String user,
       int containers, Resource res) {
 
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      internalIncrPendingResources(partition, user, containers, res);
-    }
+    internalIncrPendingResources(partition, user, containers, res);
 
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
     if (partitionQueueMetrics != null) {
@@ -688,9 +681,7 @@ public class QueueMetrics implements MetricsSource {
   public void decrPendingResources(String partition, String user,
       int containers, Resource res) {
 
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      internalDecrPendingResources(partition, user, containers, res);
-    }
+    internalDecrPendingResources(partition, user, containers, res);
 
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
     if (partitionQueueMetrics != null) {
@@ -749,9 +740,7 @@ public class QueueMetrics implements MetricsSource {
   public void allocateResources(String partition, String user, int containers,
       Resource res, boolean decrPending) {
 
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      internalAllocateResources(partition, user, containers, res, decrPending);
-    }
+    internalAllocateResources(partition, user, containers, res, decrPending);
 
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
     if (partitionQueueMetrics != null) {
@@ -838,9 +827,7 @@ public class QueueMetrics implements MetricsSource {
   public void releaseResources(String partition, String user, int containers,
       Resource res) {
 
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      internalReleaseResources(partition, user, containers, res);
-    }
+    internalReleaseResources(partition, user, containers, res);
 
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
     if (partitionQueueMetrics != null) {
@@ -940,9 +927,7 @@ public class QueueMetrics implements MetricsSource {
   }
 
   public void reserveResource(String partition, String user, Resource res) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      internalReserveResources(partition, user, res);
-    }
+    internalReserveResources(partition, user, res);
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
     if (partitionQueueMetrics != null) {
       partitionQueueMetrics.internalReserveResources(partition, user, res);
@@ -978,9 +963,7 @@ public class QueueMetrics implements MetricsSource {
   }
 
   public void unreserveResource(String partition, String user, Resource res) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
-      internalUnReserveResources(partition, user, res);
-    }
+    internalUnReserveResources(partition, user, res);
     QueueMetrics partitionQueueMetrics = getPartitionQueueMetrics(partition);
     if (partitionQueueMetrics != null) {
       partitionQueueMetrics.internalUnReserveResources(partition, user, res);
