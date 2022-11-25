@@ -511,9 +511,6 @@ public class MountTableResolver
   public List<String> getMountPoints(final String str) throws IOException {
     verifyMountTable();
     String path = RouterAdmin.normalizeFileSystemPath(str);
-    if (isTrashPath(path)) {
-      path = subtractTrashCurrentPath(path);
-    }
 
     Set<String> children = new TreeSet<>();
     readLock.lock();
