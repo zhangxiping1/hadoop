@@ -392,6 +392,7 @@ public final class ZKCuratorManager {
     private String fencingNodePath;
     private List<CuratorOp> curatorOperations = new LinkedList<>();
 
+    // 创建安全事务,会创建 /rmstore/ZKRMStateRoot/RM_ZK_FENCING_LOCK 路径 ,并且设置ACl (主机:随机密码:cd)
     SafeTransaction(List<ACL> fencingACL, String fencingNodePath)
         throws Exception {
       this.fencingNodePath = fencingNodePath;

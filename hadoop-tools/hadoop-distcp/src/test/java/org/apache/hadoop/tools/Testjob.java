@@ -45,7 +45,7 @@ public class Testjob {
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 word.set(itr.nextToken());
-                Thread.sleep(10000);
+                //Thread.sleep(10000);
                 context.write(word, one);
             }
         }
@@ -112,7 +112,7 @@ public class Testjob {
     }
 
     @Test
-    public void testHdfsApiAddFileNOKerBose() throws Exception {
+    public void testHdfsApiAddFileNOKerBeros() throws Exception {
         clearClassPath();
         Configuration conf = new HdfsConfiguration();
         conf.set("fs.defaultFS", "hdfs://127.0.0.1:40250");
