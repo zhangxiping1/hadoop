@@ -563,6 +563,75 @@ public class TestMiniYarnCluster {
         zkServer.start();
         System.in.read();
     }
+
+    @Test
+    public void testRM() throws Exception {
+        clearRMClassPath();
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
+        Configuration conf = new YarnConfiguration();
+
+        //Loaded properties from hadoop-metrics2-resourcemanager.properties
+        System.setProperty("hadoop.log.file","ResourceManager_metrics.log");
+        System.setProperty("java.security.krb5.conf",projectPath+"/target/test-classes/krb5.conf");
+        //不设置会提示MRAppMaster 类找不到
+        conf.setBoolean("yarn.minicluster.use-rpc", true);
+        conf.setBoolean("yarn.is.minicluster", true);
+
+        conf.setBoolean(YarnConfiguration.RM_HA_ENABLED, false);
+        conf.setBoolean(YarnConfiguration.AUTO_FAILOVER_ENABLED, false);
+
+        conf.set("yarn.nodemanager.aux-services","mapreduce_shuffle");
+        conf.set("yarn.nodemanager.aux-services.mapreduce_shuffle.class","org.apache.hadoop.mapred.ShuffleHandler");
+
+        conf.set("mapreduce.framework.name","yarn");
+
+        conf.set("yarn.node-labels.enabled","true");
+        conf.set("yarn.node-labels.fs-store.root-dir","/lable");
+        conf.set("yarn.node-attribute.fs-store.root-dir","/node-attribute");
+
+        conf.set("yarn.resourcemanager.recovery.enabled","false");
+        conf.set("yarn.resourcemanager.store.class","org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore");
+        conf.set("yarn.resourcemanager.fs.state-store.uri","/rmstore");
+
+        conf.set("yarn.scheduler.capacity.resource-calculator","org.apache.hadoop.yarn.util.resource.DominantResourceCalculator");
+        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
+        conf.set("yarn.scheduler.capacity.label-metrics.enable","true");
+        conf.set("yarn.resourcemanager.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("yarn.resourcemanager.keytab","/Users/temp/zhangxiping.keytab");
+
+        //conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.sls.scheduler.SLSCapacityScheduler");
+        //conf.set("yarn.resourcemanager.webapp.address","127.0.0.1:8088");
+        conf.set("yarn.log-aggregation-enable","true");
+        conf.set("yarn.log-aggregation.file-formats","TFile");
+        conf.set("yarn.log-aggregation.file-controller.TFile.class","org.apache.hadoop.yarn.logaggregation.filecontroller.tfile.LogAggregationTFileController");
+        conf.set("mapreduce.jobhistory.address","0.0.0.0:10021");
+        conf.set("mapreduce.jobhistory.webapp.address","0.0.0.0:19888");
+        conf.set("yarn.nodemanager.log-aggregation.queue-monitoring-interval-seconds","10");
+        conf.unset("dfs.http.policy");
+        conf.set("yarn.resourcemanager.zk-address", "127.0.0.1:2181");
+
+        ResourceManager rm1 = new ResourceManager();
+        rm1.init(conf);
+        rm1.start();
+
+        Configuration config = rm1.getConfig();
+
+        //不能直接调用conf.writeXml，使用yrCluster.getConfig() ,防止writeXml 失败
+        config.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
+        config.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/mapred-site.xml")));
+        //testjob 最后加载的资源文件是hdfs-site文件,这个配置是mared-default配置的local,会覆盖yarn-site的配置,需要覆盖
+        config.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
+        //客户端设置RM主备,方便命令行操作 , 要使用hadoop3.3.0 客户端执行yarn rmadmin ,单测试用例没有这个问题
+        //config.set("yarn.resourcemanager.admin.address.rm1", "127.0.0.1:18033");
+        //config.set("yarn.resourcemanager.admin.address.rm2","127.0.0.1:28033");
+        config.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/yarn-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/yarn-site.xml")));
+
+        System.in.read();
+    }
+
     @Test
     public void testRM1() throws Exception {
         clearRMClassPath();
