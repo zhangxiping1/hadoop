@@ -175,7 +175,7 @@ public class Testjob {
         conf.set("mapred.child.java.opts","-Dfile.encoding=UTF-8");
         // 想查看中间生成的临时文件 ，通过设置AM启动debug调试
         conf.set("yarn.app.mapreduce.am.command-opts","-Dfile.encoding=UTF-8 ");//-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=9906
-        conf.set("mapreduce.job.queuename","dev");
+        conf.set("mapreduce.job.queuename","pro");
         System.setProperty("file.encoding","utf-8");
         Long startTs = System.currentTimeMillis();
 

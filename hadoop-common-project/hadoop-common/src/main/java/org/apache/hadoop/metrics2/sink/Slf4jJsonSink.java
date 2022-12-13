@@ -102,6 +102,9 @@ public class Slf4jJsonSink implements MetricsSink, Closeable {
 
   @Override
   public void flush() {
+//    if(STRING_BUILDER.get().length()>0){
+//      LOG.info(STRING_BUILDER.get().toString());
+//    }
     LOG.info(STRING_BUILDER.get().toString());
     STRING_BUILDER.get().setLength(0);
   }

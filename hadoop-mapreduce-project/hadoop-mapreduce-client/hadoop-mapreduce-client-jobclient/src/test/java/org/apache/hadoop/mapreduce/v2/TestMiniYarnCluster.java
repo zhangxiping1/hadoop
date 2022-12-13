@@ -291,10 +291,13 @@ public class TestMiniYarnCluster {
         conf.set("dfs.datanode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
     }
 
+    static void setLogLevel(){
+        System.setProperty("hadoop.metrics.logger","INFO,RFAMETRIC");
+        System.setProperty("hadoop.root.logger","INFO,console");
+        System.setProperty("hadoop.security.logger","INFO,DRFAS");
+        System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%d{ISO8601} : %m%n");
+    }
     static Configuration getRMConf(Configuration conf, int index){
-
-        //Loaded properties from hadoop-metrics2-resourcemanager.properties
-        System.setProperty("hadoop.log.file","ResourceManager"+index+"_metrics.log");
         System.setProperty("java.security.krb5.conf",projectPath+"/target/test-classes/krb5.conf");
         //不设置会提示MRAppMaster 类找不到
         conf.setBoolean("yarn.minicluster.use-rpc", true);
@@ -351,11 +354,10 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testKDC() throws Exception {
+        setLogLevel();
         System.setProperty("hadoop.log.file","KDC.log");
-
         //先清理classpath配置文件
         clearClassPath();
-
         Configuration conf = new Configuration();
         UserGroupInformation.setConfiguration(conf);
         workDir = folder.getRoot();
@@ -404,7 +406,8 @@ public class TestMiniYarnCluster {
     // 出现 keystore——old 找不到  使用超级管理员账户重启idea
     @Test
     public void testKMS() throws Exception {
-
+        setLogLevel();
+        System.setProperty("hadoop.log.file","KMS.log");
         final String keystore;
         final String password;
         File kmsDir = new File(projectPath +"/target/test-classes/" );
@@ -424,13 +427,13 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testMiniQJM() throws Exception {
+        setLogLevel();
+        System.setProperty("hadoop.log.file","JN.log");
         Configuration conf = new Configuration();
         DefaultMetricsSystem.setMiniClusterMode(true);
-
         conf.set("ignore.secure.ports.for.testing","true");
         conf.set("dfs.http.policy","HTTP_ONLY");
         conf.set("dfs.qjournal.queued-edits.limit.mb","1");
-
         conf.set("hadoop.security.auth_to_local","RULE:[2:$1@$0](.*@EXAMPLE.COM)s/.*/zhangxiping/\n"+"DEFAULT");
         conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("dfs.journalnode.keytab.file","/Users/temp/zhangxiping.keytab");
@@ -492,11 +495,11 @@ public class TestMiniYarnCluster {
         return conf;
     }
 
-
-
     @Test
     public void testNN1() throws Exception {
         clearRMClassPath();
+        setLogLevel();
+        System.setProperty("hadoop.log.file","NN1.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new HdfsConfiguration();
         setHdfsCommonConf(conf);
@@ -510,6 +513,8 @@ public class TestMiniYarnCluster {
     @Test
     public void testNN2() throws Exception {
         clearRMClassPath();
+        setLogLevel();
+        System.setProperty("hadoop.log.file","NN2.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new HdfsConfiguration();
         setHdfsCommonConf(conf);
@@ -538,6 +543,8 @@ public class TestMiniYarnCluster {
 
     @Test
     public void DN1() throws Exception {
+        setLogLevel();
+        System.setProperty("hadoop.log.file","DN1.log");
         DataNode dn = DataNode.instantiateDataNode(null, getDNConf(1));
         dn.runDatanodeDaemon();
         System.in.read();
@@ -545,6 +552,8 @@ public class TestMiniYarnCluster {
 
     @Test
     public void DN2() throws Exception {
+        setLogLevel();
+        System.setProperty("hadoop.log.file","DN2.log");
         DataNode dn = DataNode.instantiateDataNode(null, getDNConf(2));
         dn.runDatanodeDaemon();
         System.in.read();
@@ -552,6 +561,8 @@ public class TestMiniYarnCluster {
 
     @Test
     public void DN3() throws Exception {
+        setLogLevel();
+        System.setProperty("hadoop.log.file","DN3.log");
         DataNode dn = DataNode.instantiateDataNode(null, getDNConf(3));
         dn.runDatanodeDaemon();
         System.in.read();
@@ -559,6 +570,8 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testZK() throws Exception {
+        setLogLevel();
+        System.setProperty("hadoop.log.file","ZK.log");
         TestingServer zkServer = new TestingServer(new InstanceSpec(new File("/Users/temp/zkData"), 2181, -1, -1, false, -1),true);
         zkServer.start();
         System.in.read();
@@ -567,6 +580,9 @@ public class TestMiniYarnCluster {
     @Test
     public void testRM() throws Exception {
         clearRMClassPath();
+        setLogLevel();
+        System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%m%n");
+        System.setProperty("hadoop.log.file","RM.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new YarnConfiguration();
 
@@ -635,6 +651,9 @@ public class TestMiniYarnCluster {
     @Test
     public void testRM1() throws Exception {
         clearRMClassPath();
+        setLogLevel();
+        System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%m%n");
+        System.setProperty("hadoop.log.file","RM1.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new YarnConfiguration();
         ResourceManager rm1 = new ResourceManager();
@@ -645,7 +664,9 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testRM2() throws Exception {
-
+        setLogLevel();
+        System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%m%n");
+        System.setProperty("hadoop.log.file","RM2.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new YarnConfiguration();
         ResourceManager rm1 = new ResourceManager();
@@ -675,7 +696,8 @@ public class TestMiniYarnCluster {
      */
     @Test
     public void testHS() throws Exception {
-        System.setProperty("hadoop.log.file","historyServer_metrics.log");
+        setLogLevel();
+        System.setProperty("hadoop.log.file","JHS.log");
         Configuration conf =new Configuration();
         System.setProperty("hadoop.root.logger","DEBUG,stdout");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
@@ -703,7 +725,8 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testNM() throws Exception {
-        System.setProperty("hadoop.log.file","NM_metrics.log");
+        setLogLevel();
+        System.setProperty("hadoop.log.file","NM.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
@@ -715,7 +738,8 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testNM2() throws Exception {
-        System.setProperty("hadoop.log.file","NM2_metrics.log");
+        setLogLevel();
+        System.setProperty("hadoop.log.file","NM2.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
@@ -727,7 +751,8 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testNM3() throws Exception {
-        System.setProperty("hadoop.log.file","NM3_metrics.log");
+        setLogLevel();
+        System.setProperty("hadoop.log.file","NM3.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
@@ -739,6 +764,7 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testNM4() throws Exception {
+        setLogLevel();
         System.setProperty("hadoop.log.file","NM4_metrics.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("HADOOP_USER_NAME","root");
@@ -752,6 +778,7 @@ public class TestMiniYarnCluster {
 
     @Test
     public void testNM5() throws Exception {
+        setLogLevel();
         System.setProperty("hadoop.log.file","NM5_metrics.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("HADOOP_USER_NAME","root");
