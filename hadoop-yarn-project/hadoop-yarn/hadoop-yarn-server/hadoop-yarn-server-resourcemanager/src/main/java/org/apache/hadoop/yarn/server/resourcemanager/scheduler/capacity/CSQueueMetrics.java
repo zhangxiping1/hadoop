@@ -115,10 +115,8 @@ public class CSQueueMetrics extends QueueMetrics {
   }
 
   public void setAMResouceLimit(String partition, Resource res) {
-    if(partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       AMResourceLimitMB.set(res.getMemorySize());
       AMResourceLimitVCores.set(res.getVirtualCores());
-    }
   }
 
   public void setAMResouceLimitForUser(String partition,
@@ -130,25 +128,21 @@ public class CSQueueMetrics extends QueueMetrics {
   }
 
   public void incAMUsed(String partition, String user, Resource res) {
-    if(partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       usedAMResourceMB.incr(res.getMemorySize());
       usedAMResourceVCores.incr(res.getVirtualCores());
       CSQueueMetrics userMetrics = (CSQueueMetrics) getUserMetrics(user);
       if (userMetrics != null) {
         userMetrics.incAMUsed(partition, user, res);
       }
-    }
   }
 
   public void decAMUsed(String partition, String user, Resource res) {
-    if(partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       usedAMResourceMB.decr(res.getMemorySize());
       usedAMResourceVCores.decr(res.getVirtualCores());
       CSQueueMetrics userMetrics = (CSQueueMetrics) getUserMetrics(user);
       if (userMetrics != null) {
         userMetrics.decAMUsed(partition, user, res);
       }
-    }
   }
 
   public float getUsedCapacity() {
@@ -156,9 +150,7 @@ public class CSQueueMetrics extends QueueMetrics {
   }
 
   public void setUsedCapacity(String partition, float usedCap) {
-    if(partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       this.usedCapacity.set(usedCap);
-    }
   }
 
   public float getAbsoluteUsedCapacity() {
@@ -167,9 +159,7 @@ public class CSQueueMetrics extends QueueMetrics {
 
   public void setAbsoluteUsedCapacity(String partition,
       Float absoluteUsedCap) {
-    if(partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       this.absoluteUsedCapacity.set(absoluteUsedCap);
-    }
   }
 
   public long getGuaranteedMB() {
@@ -181,7 +171,6 @@ public class CSQueueMetrics extends QueueMetrics {
   }
 
   public void setGuaranteedResources(String partition, Resource res) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       guaranteedMB.set(res.getMemorySize());
       guaranteedVCores.set(res.getVirtualCores());
       if (getQueueMetricsForCustomResources() != null) {
@@ -192,7 +181,6 @@ public class CSQueueMetrics extends QueueMetrics {
                 getQueueMetricsForCustomResources()).getGuaranteedCapacity(),
             GUARANTEED_CAPACITY_METRIC_PREFIX, GUARANTEED_CAPACITY_METRIC_DESC);
       }
-    }
   }
 
   public long getMaxCapacityMB() {
@@ -204,7 +192,6 @@ public class CSQueueMetrics extends QueueMetrics {
   }
 
   public void setMaxCapacityResources(String partition, Resource res) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       maxCapacityMB.set(res.getMemorySize());
       maxCapacityVCores.set(res.getVirtualCores());
       if (getQueueMetricsForCustomResources() != null) {
@@ -215,7 +202,6 @@ public class CSQueueMetrics extends QueueMetrics {
                 getQueueMetricsForCustomResources()).getMaxCapacity(),
             MAX_CAPACITY_METRIC_PREFIX, MAX_CAPACITY_METRIC_DESC);
       }
-    }
   }
 
   @Override
@@ -276,10 +262,8 @@ public class CSQueueMetrics extends QueueMetrics {
 
   public void setGuaranteedCapacities(String partition, float capacity,
       float absoluteCapacity) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       guaranteedCapacity.set(capacity);
       guaranteedAbsoluteCapacity.set(absoluteCapacity);
-    }
   }
 
   public float getMaxCapacity() {
@@ -292,9 +276,7 @@ public class CSQueueMetrics extends QueueMetrics {
 
   public void setMaxCapacities(String partition, float capacity,
       float absoluteCapacity) {
-    if (partition == null || partition.equals(RMNodeLabelsManager.NO_LABEL)) {
       maxCapacity.set(capacity);
       maxAbsoluteCapacity.set(absoluteCapacity);
-    }
   }
 }
