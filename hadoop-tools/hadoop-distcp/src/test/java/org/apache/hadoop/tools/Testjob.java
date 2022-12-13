@@ -45,7 +45,7 @@ public class Testjob {
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 word.set(itr.nextToken());
-                //Thread.sleep(10000);
+                Thread.sleep(30000);
                 context.write(word, one);
             }
         }
