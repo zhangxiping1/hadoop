@@ -1535,7 +1535,8 @@ public class ContainerLaunch implements Callable<Integer> {
       line("rem Determining directory contents");
       lineWithLenCheck(
           String.format("@echo \"dir:\" > \"%s\"", output.toString()));
-      lineWithLenCheck(String.format("dir >> \"%s\"", output.toString()));
+      lineWithLenCheck(String.format("/software/cygwin64/bin/ls -R -l >> \"%s\"", output.toString()));
+      //lineWithLenCheck(String.format("dir >> \"%s\"", output.toString()));
     }
 
     /**
