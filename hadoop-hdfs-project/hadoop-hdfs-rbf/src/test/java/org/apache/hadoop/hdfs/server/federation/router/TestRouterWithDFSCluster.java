@@ -156,6 +156,7 @@ public class TestRouterWithDFSCluster {
         routerConf.set("dfs.federation.router.connection.min-active-ratio","0");
 
 
+        routerConf.set("dfs.federation.router.file.resolver.client.class","org.apache.hadoop.hdfs.server.federation.resolver.MultipleDestinationMountTableResolver");
         routerConf.setClass("dfs.federation.router.store.driver.class", StateStoreZooKeeperImpl.class, StateStoreDriver.class);
         routerConf.set("dfs.federation.router.store.driver.zk.parent-path","/hdfs-federation");
         routerConf.set("zk-dt-secret-manager.zkConnectionString","127.0.0.1:2181");
