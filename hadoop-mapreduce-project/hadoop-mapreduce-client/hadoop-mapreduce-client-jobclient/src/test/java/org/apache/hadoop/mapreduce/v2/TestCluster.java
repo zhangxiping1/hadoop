@@ -365,6 +365,9 @@ public class TestCluster {
 
         conf.set("hadoop.security.authorization","true");
         conf.set("hadoop.security.authentication","kerberos");
+
+        //conf.set("ipc.client.fallback-to-simple-auth-allowed","true");
+
         conf.set("hadoop.security.auth_to_local","RULE:[2:$1@$0](.*@EXAMPLE.COM)s/.*/zhangxiping/\n"+"DEFAULT");
         // NN 可能依赖环境变量里面的配置
         conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
@@ -451,7 +454,7 @@ public class TestCluster {
         conf.set("dfs.ha.namenodes.minidfs-ns","nn1,nn2");
         conf.set("dfs.namenode.rpc-address.minidfs-ns.nn1","127.0.0.1:9020");
         conf.set("dfs.namenode.rpc-address.minidfs-ns.nn2","127.0.0.1:9030");
-
+        conf.set("ipc.client.fallback-to-simple-auth-allowed","true");
         conf.set("dfs.namenode.http-address.minidfs-ns.nn1","127.0.0.1:50070");
         conf.set("dfs.namenode.http-address.minidfs-ns.nn2","127.0.0.1:50080");
         conf.set("dfs.namenode.shared.edits.dir", "qjournal://127.0.0.1:8470;127.0.0.1:8471;127.0.0.1:8472/minidfs-ns");
@@ -521,6 +524,7 @@ public class TestCluster {
         }
         NameNode nn2 = NameNode.createNameNode(new String[] {}, conf);
         conf.set("fs.defaultFS","hdfs://minidfs-ns");
+        conf.unset("ipc.client.fallback-to-simple-auth-allowed");
         nn2.getConf().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/core-site.xml")));
         nn2.getConf().writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/hdfs-site.xml")));
         //conf.writeXml(new FileOutputStream(new File(projectPath + "/target/test-classes/yarn-site.xml")));
@@ -603,7 +607,8 @@ public class TestCluster {
         conf.set("yarn.resourcemanager.fs.state-store.uri","/rmstore");
 
         conf.set("yarn.scheduler.capacity.resource-calculator","org.apache.hadoop.yarn.util.resource.DominantResourceCalculator");
-        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
+        //conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
+        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.FairScheduler");
         conf.set("yarn.scheduler.capacity.label-metrics.enable","true");
         conf.set("yarn.resourcemanager.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("yarn.resourcemanager.keytab","/Users/temp/zhangxiping.keytab");

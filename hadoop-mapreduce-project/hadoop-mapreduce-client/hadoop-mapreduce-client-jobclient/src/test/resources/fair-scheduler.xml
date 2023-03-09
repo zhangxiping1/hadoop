@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<allocations>
+    <queue name="root">
+        <aclAdministerApps>hadoop,yarn </aclAdministerApps>
+        <aclSubmitApps> </aclSubmitApps>
+        <queue name="default">
+            <aclAdministerApps>hadoop,yarn</aclAdministerApps>
+            <aclSubmitApps>*</aclSubmitApps>
+            <maxResources>307200 mb, 100 vcores</maxResources>
+            <maxRunningApps>20</maxRunningApps>
+            <minResources>10240 mb, 10 vcores</minResources>
+            <schedulingPolicy>fair</schedulingPolicy>
+            <weight>1.0</weight>
+        </queue>
+        <queue name="mammut_service">
+            <aclAdministerApps>mammut_service,hadoop,yarn</aclAdministerApps>
+            <aclSubmitApps>mammut_service,bdms_admin.mammut </aclSubmitApps>
+            <maxResources>307200 mb, 100 vcores</maxResources>
+            <maxRunningApps>20</maxRunningApps>
+            <minResources>10240 mb, 10 vcores</minResources>
+            <schedulingPolicy>fair</schedulingPolicy>
+            <weight>1.0</weight>
+            <queue name="default">
+                <maxResources>307200 mb, 100 vcores</maxResources>
+                <minResources>10240 mb, 10 vcores</minResources>
+                <weight>1</weight>
+            </queue>
+            <queue name="sla">
+                <maxResources>307200 mb, 100 vcores</maxResources>
+                <minResources>10240 mb, 10 vcores</minResources>
+                <weight>10</weight>
+            </queue>
+        </queue>
+    </queue>
+    <queuePlacementPolicy>
+        <rule name="specified" create="false" choiceDefaultForParentQueue="true"/>
+        <rule name="user" create="false" choiceDefaultForParentQueue="true"/>
+        <rule name="default" />
+    </queuePlacementPolicy>
+</allocations>
