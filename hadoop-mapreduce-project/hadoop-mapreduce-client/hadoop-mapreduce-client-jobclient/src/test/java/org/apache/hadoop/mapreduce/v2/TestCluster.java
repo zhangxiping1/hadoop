@@ -365,7 +365,6 @@ public class TestCluster {
 
         conf.set("hadoop.security.authorization","true");
         conf.set("hadoop.security.authentication","kerberos");
-
         //conf.set("ipc.client.fallback-to-simple-auth-allowed","true");
 
         conf.set("hadoop.security.auth_to_local","RULE:[2:$1@$0](.*@EXAMPLE.COM)s/.*/zhangxiping/\n"+"DEFAULT");
