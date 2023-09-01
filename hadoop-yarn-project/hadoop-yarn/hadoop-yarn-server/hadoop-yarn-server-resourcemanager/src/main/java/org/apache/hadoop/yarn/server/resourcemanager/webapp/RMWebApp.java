@@ -124,8 +124,8 @@ public class RMWebApp extends WebApp implements YarnWebParams {
           : yarnConf.getSocketAddr(YarnConfiguration.RM_WEBAPP_ADDRESS,
               YarnConfiguration.DEFAULT_RM_WEBAPP_ADDRESS,
               YarnConfiguration.DEFAULT_RM_WEBAPP_PORT);
-
-      path = sock.getHostName() + ":" + Integer.toString(sock.getPort());
+      String host = (sock.getHostName().equals("0.0.0.0"))?"127.0.0.1":sock.getHostName();
+      path = host + ":" + Integer.toString(sock.getPort());
       path = YarnConfiguration.useHttps(yarnConf)
           ? "https://" + path
           : "http://" + path;

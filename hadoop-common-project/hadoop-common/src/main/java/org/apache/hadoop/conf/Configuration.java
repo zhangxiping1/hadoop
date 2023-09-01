@@ -3041,7 +3041,10 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
                              boolean fullReload,
                              boolean quiet) {
     if(loadDefaults && fullReload) {
+      int i = 0 ;
       for (String resource : defaultResources) {
+        i++;
+//        LOG.info("静态资源 size "+ defaultResources.size()+", 开始加载 第"+i+"个 defaultResources :"+resource.toString());
         loadResource(properties, new Resource(resource, false), quiet);
       }
     }
@@ -3111,6 +3114,11 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
       reader  = (XMLStreamReader2)parse((URL)resource, isRestricted);
     } else if (resource instanceof String) {        // a CLASSPATH resource
       URL url = getResource((String)resource);
+//      if(url !=null){
+//        LOG.info("\n*******************  这个资源文件所在路径:"+ url.toString());
+//      }else{
+//        LOG.info("\n*******************  这个资源文件不存在");
+//      }
       reader = (XMLStreamReader2)parse(url, isRestricted);
     } else if (resource instanceof Path) {          // a file resource
       // Can't use FileSystem API or we get an infinite loop
@@ -3118,12 +3126,15 @@ public class Configuration implements Iterable<Map.Entry<String,String>>,
       File file = new File(((Path)resource).toUri().getPath())
         .getAbsoluteFile();
       if (file.exists()) {
+//        LOG.info("\n******************* 这个资源文件所在路径:"+ file.toString());
         if (!quiet) {
           LOG.debug("parsing File " + file);
         }
         reader = (XMLStreamReader2)parse(new BufferedInputStream(
             Files.newInputStream(file.toPath())), ((Path) resource).toString(),
             isRestricted);
+      }else{
+//        LOG.info("\n******************* 这个资源文件不存在");
       }
     } else if (resource instanceof InputStream) {
       reader = (XMLStreamReader2)parse((InputStream)resource, null,
