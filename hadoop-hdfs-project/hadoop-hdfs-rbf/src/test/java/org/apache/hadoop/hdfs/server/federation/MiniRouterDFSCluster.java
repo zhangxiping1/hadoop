@@ -83,6 +83,8 @@ import org.apache.hadoop.hdfs.server.federation.resolver.ActiveNamenodeResolver;
 import org.apache.hadoop.hdfs.server.federation.resolver.FederationNamenodeServiceState;
 import org.apache.hadoop.hdfs.server.federation.resolver.FederationNamespaceInfo;
 import org.apache.hadoop.hdfs.server.federation.resolver.FileSubclusterResolver;
+import org.apache.hadoop.hdfs.server.federation.resolver.MembershipNamenodeResolver;
+import org.apache.hadoop.hdfs.server.federation.resolver.MultipleDestinationMountTableResolver;
 import org.apache.hadoop.hdfs.server.federation.resolver.NamenodeStatusReport;
 import org.apache.hadoop.hdfs.server.federation.router.Router;
 import org.apache.hadoop.hdfs.server.federation.router.RouterClient;
@@ -630,6 +632,76 @@ public class MiniRouterDFSCluster {
     return conf;
   }
 
+  /**
+   * Generate the configuration for a Router.
+   *
+   * @param nsId Nameservice identifier.
+   * @param nnId Namenode identifier.
+   * @return New configuration for a Router.
+   */
+  public Configuration generateRouterConfiguration(String nsId, String nnId,int i) {
+
+    Configuration conf;
+    if (this.routerConf == null) {
+      conf = new Configuration(false);
+    } else {
+      conf = new Configuration(routerConf);
+    }
+    conf.addResource(generateNamenodeConfiguration(nsId));
+    conf.setClass(FEDERATION_NAMENODE_RESOLVER_CLIENT_CLASS,
+        MembershipNamenodeResolver.class, ActiveNamenodeResolver.class);
+    conf.setClass(FEDERATION_FILE_RESOLVER_CLIENT_CLASS,
+        MultipleDestinationMountTableResolver.class, FileSubclusterResolver.class);
+
+    // Disable safemode on startup
+    conf.setBoolean(DFS_ROUTER_SAFEMODE_ENABLE, false);
+
+    // Set the nameservice ID for the default NN monitor
+    conf.set(DFS_NAMESERVICE_ID, nsId);
+    if (nnId != null) {
+      conf.set(DFS_HA_NAMENODE_ID_KEY, nnId);
+    }
+
+    // Namenodes to monitor
+    StringBuilder sb = new StringBuilder();
+    for (String ns : this.nameservices) {
+      for (NamenodeContext context : getNamenodes(ns)) {
+        String suffix = context.getConfSuffix();
+        if (sb.length() != 0) {
+          sb.append(",");
+        }
+        sb.append(suffix);
+      }
+    }
+    conf.set(DFS_ROUTER_MONITOR_NAMENODE, sb.toString());
+
+    // Add custom overrides if available
+    if (this.routerOverrides != null) {
+      for (Entry<String, String> entry : this.routerOverrides) {
+        String confKey = entry.getKey();
+        String confValue = entry.getValue();
+        conf.set(confKey, confValue);
+      }
+    }
+
+    conf.setInt(DFS_ROUTER_HANDLER_COUNT_KEY, 10);
+    conf.set(DFS_ROUTER_RPC_ADDRESS_KEY, "127.0.0.1:4025"+i);
+    conf.set(DFS_ROUTER_RPC_BIND_HOST_KEY, "127.0.0.1");
+
+    conf.set(DFS_ROUTER_ADMIN_ADDRESS_KEY, "127.0.0.1:4026"+i);
+    conf.set(DFS_ROUTER_ADMIN_BIND_HOST_KEY, "127.0.0.1");
+
+    conf.set(DFS_ROUTER_HTTP_ADDRESS_KEY, "127.0.0.1:5071"+i);
+    conf.set(DFS_ROUTER_HTTPS_ADDRESS_KEY, "127.0.0.1:0");
+    conf.set(DFS_ROUTER_HTTP_BIND_HOST_KEY, "127.0.0.1");
+
+    conf.set(DFS_ROUTER_DEFAULT_NAMESERVICE, nameservices.get(0));
+    conf.setLong(DFS_ROUTER_HEARTBEAT_INTERVAL_MS, heartbeatInterval);
+    conf.setLong(DFS_ROUTER_CACHE_TIME_TO_LIVE_MS, cacheFlushInterval);
+
+    return conf;
+  }
+
   public void configureNameservices(int numNameservices, int numNamenodes,
       Configuration overrideConf) {
     this.nameservices = new ArrayList<>();
@@ -783,6 +855,13 @@ public class MiniRouterDFSCluster {
     return rc;
   }
 
+  public RouterContext buildRouter(String nsId, String nnId, int i)
+      throws URISyntaxException, IOException {
+    Configuration config = generateRouterConfiguration(nsId, nnId,i);
+    RouterContext rc = new RouterContext(config, nsId, nnId);
+    return rc;
+  }
+
   public void startCluster() {
     startCluster(null);
   }
@@ -836,6 +915,8 @@ public class MiniRouterDFSCluster {
           .nnTopology(topology)
           .dataNodeConfOverlays(dnConfs)
           .checkExitOnShutdown(false)
+          .enableManagedDfsDirsRedundancy(false)
+          .format(true)
           .storageTypes(storageTypes)
           .racks(racks)
           .build();
@@ -864,6 +945,33 @@ public class MiniRouterDFSCluster {
       for (NamenodeContext context : getNamenodes(ns)) {
         RouterContext router = buildRouter(ns, context.namenodeId);
         this.routers.add(router);
+      }
+    }
+
+    // Start all routers
+    for (RouterContext router : this.routers) {
+      router.router.start();
+    }
+
+    // Wait until all routers are active and record their ports
+    for (RouterContext router : this.routers) {
+      waitActive(router);
+      router.initRouter();
+    }
+  }
+
+
+  public void startMYRouters()
+      throws InterruptedException, URISyntaxException, IOException {
+
+    // Create one router per nameservice
+    this.routers = new ArrayList<>();
+    int i =0;
+    for (String ns : this.nameservices) {
+      for (NamenodeContext context : getNamenodes(ns)) {
+        RouterContext router = buildRouter(ns, context.namenodeId,i);
+        this.routers.add(router);
+        i++;
       }
     }
 

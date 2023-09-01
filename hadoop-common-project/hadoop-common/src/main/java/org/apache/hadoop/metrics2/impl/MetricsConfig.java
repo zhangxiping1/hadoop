@@ -118,8 +118,9 @@ class MetricsConfig extends SubsetConfiguration {
         FileHandler fh = new FileHandler(pcf);
         fh.setFileName(fname);
         fh.load();
+
         Configuration cf = pcf.interpolatedConfiguration();
-        LOG.info("Loaded properties from {}", fname);
+        LOG.info("Loaded properties from {} {} {}", fname,fh.getPath(),fh.getURL());
         if (LOG.isDebugEnabled()) {
           LOG.debug("Properties: {}", toString(cf));
         }

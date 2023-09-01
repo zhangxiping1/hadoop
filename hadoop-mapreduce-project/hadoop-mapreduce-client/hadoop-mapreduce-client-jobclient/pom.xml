@@ -35,6 +35,126 @@
   </properties>
 
   <dependencies>
+
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-core-api</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.directory.api</groupId>
+          <artifactId>api-ldap-schema-data</artifactId>
+        </exclusion>
+        <exclusion>
+          <artifactId>bcprov-jdk15</artifactId>
+          <groupId>bouncycastle</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-interceptor-kerberos</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.directory.api</groupId>
+          <artifactId>api-ldap-schema-data</artifactId>
+        </exclusion>
+        <exclusion>
+          <artifactId>bcprov-jdk15</artifactId>
+          <groupId>bouncycastle</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-protocol-shared</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-protocol-kerberos</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+      <exclusions>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-ldif-partition</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.directory.api</groupId>
+          <artifactId>api-ldap-schema-data</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-mavibot-partition</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.directory.api</groupId>
+          <artifactId>api-ldap-schema-data</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.api</groupId>
+      <artifactId>api-all</artifactId>
+      <version>1.0.0-M20</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>xml-apis</groupId>
+          <artifactId>xml-apis</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>xpp3</groupId>
+          <artifactId>xpp3</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>dom4j</groupId>
+          <artifactId>dom4j</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-jdbm-partition</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.directory.api</groupId>
+          <artifactId>api-ldap-schema-data</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.directory.server</groupId>
+      <artifactId>apacheds-protocol-ldap</artifactId>
+      <version>2.0.0-M15</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.directory.api</groupId>
+          <artifactId>api-ldap-schema-data</artifactId>
+        </exclusion>
+        <exclusion>
+          <artifactId>bcprov-jdk15</artifactId>
+          <groupId>bouncycastle</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-mapreduce-client-common</artifactId>
@@ -116,17 +236,56 @@
     <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcprov-jdk15on</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
       <artifactId>bcpkix-jdk15on</artifactId>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
       <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-recipes</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-kms</artifactId>
+      <scope>test</scope>
+      <type>test-jar</type>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-kms</artifactId>
+      <scope>test</scope>
+      <type>jar</type>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-minikdc</artifactId>
+      <scope>test</scope>
+      <type>jar</type>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-minikdc</artifactId>
+      <scope>test</scope>
+      <type>jar</type>
     </dependency>
   </dependencies>
 
