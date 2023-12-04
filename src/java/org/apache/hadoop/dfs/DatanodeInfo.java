@@ -29,7 +29,7 @@ import java.util.*;
 public class DatanodeInfo implements Writable, Comparable {
     private UTF8 name;
     private long capacityBytes, remainingBytes, lastUpdate;
-    private volatile TreeSet blocks;
+    private volatile TreeSet blocks;// 一方面块汇报形成，一方面是写入过程添加的
 
     /** Create an empty DatanodeInfo.
      */

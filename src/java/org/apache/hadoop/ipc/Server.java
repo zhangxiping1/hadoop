@@ -43,6 +43,8 @@ import org.apache.hadoop.io.UTF8;
  * 
  * @author Doug Cutting
  * @see Client
+ *
+ * server listener 会建立新线程的连接connection ，run一直接受请求封装成call ，丢到队列里面去，handle处理该队列 （后面这个流程会被 reader 改变）
  */
 public abstract class Server {
   public static final Logger LOG =

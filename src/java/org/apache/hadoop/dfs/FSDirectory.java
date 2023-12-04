@@ -19,6 +19,7 @@ import org.apache.hadoop.io.*;
 
 import java.io.*;
 import java.util.*;
+import java.util.logging.Logger;
 
 /*************************************************
  * FSDirectory stores the filesystem directory state.
@@ -29,6 +30,7 @@ import java.util.*;
  * and logged to disk.
  * 
  * @author Mike Cafarella
+ * 这个对象包含了关键的结构 INode，  image， edits 落盘和加载
  *************************************************/
 public class FSDirectory implements FSConstants {
     static String FS_IMAGE = "fsimage";
@@ -39,7 +41,7 @@ public class FSDirectory implements FSConstants {
     private static final byte OP_RENAME = 1;
     private static final byte OP_DELETE = 2;
     private static final byte OP_MKDIR = 3;
-
+    Logger LOG = Logger.getLogger("org.apache.hadoop.dfs.FSDirectory");
     /******************************************************
      * We keep an in-memory representation of the file/block
      * hierarchy.
@@ -104,6 +106,7 @@ public class FSDirectory implements FSConstants {
          */
         INode addNode(String target, Block blks[]) {
             if (getNode(target) != null) {
+                LOG.info("******************** FSDirectory.addNode: " + target + " alread exists.");
                 return null;
             } else {
                 String parentName = DFSFile.getDFSParent(target);
@@ -209,6 +212,7 @@ public class FSDirectory implements FSConstants {
         }
 
         /**
+         * 这个版本保存image很简单 ，先保存总共多少个inode（int ） ，以次遍历root 下的子目录，每个inode的名字，每个inode的block数目，如果是目录的话，block数目为0
          */
         void saveImage(String parentPrefix, DataOutputStream out) throws IOException {
             String fullName = "";
@@ -232,7 +236,7 @@ public class FSDirectory implements FSConstants {
     }
 
     INode rootDir = new INode("", null, null);
-    TreeSet activeBlocks = new TreeSet();
+    TreeSet activeBlocks = new TreeSet(); // 对应的目录树中存在文件，activeBlocks集合才会存在block  与blockMaps区别在于，blockMaps包括正在写的文件已完成的block(文件还没全部写完)
     TreeMap activeLocks = new TreeMap();
     DataOutputStream editlog = null;
     boolean ready = false;
@@ -247,7 +251,7 @@ public class FSDirectory implements FSConstants {
             fullimage.mkdirs();
         }
         File edits = new File(dir, "edits");
-        if (loadFSImage(fullimage, edits)) {
+        if (loadFSImage(fullimage, edits)) {  //重启后，才会重新保存一次FSImage
             saveFSImage(fullimage, edits);
         }
 
@@ -290,6 +294,7 @@ public class FSDirectory implements FSConstants {
         //
         // Atomic move sequence, to recover from interrupted save
         //
+        LOG.info("************ 加载image ：" + fsdir);
         File curFile = new File(fsdir, FS_IMAGE);
         File newFile = new File(fsdir, NEW_FS_IMAGE);
         File oldFile = new File(fsdir, OLD_FS_IMAGE);
@@ -315,11 +320,14 @@ public class FSDirectory implements FSConstants {
         if (curFile.exists()) {
             DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(curFile)));
             try {
-                int numFiles = in.readInt();
+                int numFiles = in.readInt();  //与保存image时的操作相同，先读取多少长度的inode，然后遍历每个inode ，保存每个inode的名字，block数目，这里其实没有区分文件和目录，一切皆inodeL
+                LOG.info("************ 加载image文件总数：" + numFiles);
                 for (int i = 0; i < numFiles; i++) {
                     UTF8 name = new UTF8();
                     name.readFields(in);
+
                     int numBlocks = in.readInt();
+                    LOG.info("************ 加载image文件：" + name+ ",numBlocks:" + numBlocks);
                     if (numBlocks == 0) {
                         unprotectedAddFile(name, null);
                     } else {
@@ -351,7 +359,7 @@ public class FSDirectory implements FSConstants {
      */
     int loadFSEdits(File edits) throws IOException {
         int numEdits = 0;
-
+        LOG.info("************ 加载edits ：" + edits);
         if (edits.exists()) {
             DataInputStream in = new DataInputStream(new BufferedInputStream(new FileInputStream(edits)));
             try {
@@ -415,6 +423,7 @@ public class FSDirectory implements FSConstants {
         //
         DataOutputStream out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(newFile)));
         try {
+            LOG.info("************ 保存 saveFSImage ：" + fullimage);
             out.writeInt(rootDir.numItemsInTree() - 1);
             rootDir.saveImage("", out);
         } finally {
@@ -464,7 +473,7 @@ public class FSDirectory implements FSConstants {
         // Always do an implicit mkdirs for parent directory tree
         mkdirs(DFSFile.getDFSParent(src.toString()));
         if (unprotectedAddFile(src, blocks)) {
-            logEdit(OP_ADD, src, new ArrayWritable(Block.class, blocks));
+            logEdit(OP_ADD, src, new ArrayWritable(Block.class, blocks)); //业务实际操作记录到edits文件中
             return true;
         } else {
             return false;
@@ -472,6 +481,8 @@ public class FSDirectory implements FSConstants {
     }
     
     /**
+     *
+     * 只是用于回放edits文件，不会将操作记录到edits文件中
      */
     boolean unprotectedAddFile(UTF8 name, Block blocks[]) {
         synchronized (rootDir) {
@@ -535,6 +546,7 @@ public class FSDirectory implements FSConstants {
     }
 
     /**
+     * 加载edit时，解析操作时调用，跟正常的业务调用有区别，不会记录到edits文件中
      */
     Block[] unprotectedDelete(UTF8 src) {
         synchronized (rootDir) {

@@ -35,6 +35,8 @@ import java.util.logging.*;
  * and every so often afterwards.
  *
  * @author Mike Cafarella
+ * DN 关键的两个线程 ，main 主线程 （派生 块拷贝的线程 dataTransfer） ，dataXceiverServer 用于接收数据的线程 （派生DataXceiver线程）,
+ * 这个版本的数据结构单一 FSDataset
  **********************************************************/
 public class DataNode implements FSConstants, Runnable {
     public static final Logger LOG = LogFormatter.getLogger("org.apache.hadoop.dfs.DataNode");
@@ -144,7 +146,7 @@ public class DataNode implements FSConstants, Runnable {
 
         //
         // Now loop for a long time....
-        //
+        //  //这里触发的动作,都是DN 主动去触发的,1.发送心跳 2.块汇报 3.块复制传输
         while (shouldRun) {
             long now = System.currentTimeMillis();
 
@@ -158,6 +160,7 @@ public class DataNode implements FSConstants, Runnable {
                     // -- Datanode name
                     // -- data transfer port
                     // -- Total capacity
+
                     // -- Bytes remaining
                     //
                     namenode.sendHeartbeat(localName, data.getCapacity(), data.getRemaining());
@@ -169,7 +172,7 @@ public class DataNode implements FSConstants, Runnable {
                     // Send latest blockinfo report if timer has expired.
                     // Get back a list of local block(s) that are obsolete
                     // and can be safely GC'ed.
-                    //
+                    // 全量汇报
                     Block toDelete[] = namenode.blockReport(localName, data.getBlockReport());
                     data.invalidate(toDelete);
                     lastBlockReport = now;
@@ -178,7 +181,7 @@ public class DataNode implements FSConstants, Runnable {
 		if (receivedBlockList.size() > 0) {
                     //
                     // Send newly-received blockids to namenode
-                    //
+                    // 如果namenode要求的话，告诉他们我们已经收到了完整的数据块。这是在面向namenode的块传输过程中完成的，而不是在客户端写入过程中。
                     Block blockArray[] = (Block[]) receivedBlockList.toArray(new Block[receivedBlockList.size()]);
                     receivedBlockList.removeAllElements();
                     namenode.blockReceived(localName, blockArray);
@@ -192,12 +195,14 @@ public class DataNode implements FSConstants, Runnable {
 		// the case of network interruptions.)  So, wait for some time
 		// to pass from the time of connection to the first block-transfer.
 		// Otherwise we transfer a lot of blocks unnecessarily.
-		//
+		//  DN 启动后会等待两分钟,仅在启动安静期(等一段时间,不会立马做数据传输)后执行块操作(传输、删除)。假设所有的datanode都将一起启动，但是namenode可能已经在一段时间之前启动过。(在网络中断的情况下尤其如此。)因此，从连接到第一个块传输等待一段时间。
+        // 否则，我们就会不必要地转移很多块。
 		if (now - sendStart > datanodeStartupPeriod) {
 		    //
 		    // Check to see if there are any block-instructions from the
 		    // namenode that this datanode should perform.
-		    //
+		    // Namenode 那边维持了待复制块的列表{这些列表为什么会产生呢？ 1.DN 失联10分钟，会生成这个DN上所有块的列表 2.在写数据的时候，写了不满足指定副本数的块，也会添加到这个列表}
+            // 这里主要是获取待复制块处理命令,xmitsInProgress 正在传输的流 ,nn 那边有一个设置最大数量的流
 		    BlockCommand cmd = namenode.getBlockwork(localName, xmitsInProgress);
 		    if (cmd != null && cmd.transferBlocks()) {
 			//
@@ -215,7 +220,7 @@ public class DataNode implements FSConstants, Runnable {
 			    } else {
 				if (xferTargets[i].length > 0) {
 				    LOG.info("Starting thread to transfer block " + blocks[i] + " to " + xferTargets[i]);
-				    new Daemon(new DataTransfer(xferTargets[i], blocks[i])).start();
+				    new Daemon(new DataTransfer(xferTargets[i], blocks[i])).start(); // 有几个目标DN ,启动几个传输线程.一对多传输
 				}
 			    }
 			}
@@ -306,13 +311,18 @@ public class DataNode implements FSConstants, Runnable {
                                 throw new IOException("Mislabelled incoming datastream.");
                             }
                             DatanodeInfo targets[] = new DatanodeInfo[numTargets];
+                            String datanodeNames = "";
                             for (int i = 0; i < targets.length; i++) {
                                 DatanodeInfo tmp = new DatanodeInfo();
                                 tmp.readFields(in);
                                 targets[i] = tmp;
+                                datanodeNames += tmp.getName() + ",";
                             }
+                            LOG.info("******* OP_WRITE_BLOCK block="+b+",(1).Received block from client|DN: " + s.getInetAddress()+" ,(包括自己)下游datanode(s)="+datanodeNames);
                             byte encodingType = (byte) in.read();
                             long len = in.readLong();
+                            LOG.info("******* OP_WRITE_BLOCK len="+len);
+
 
                             //
                             // Make sure curTarget is equal to this machine
@@ -326,9 +336,11 @@ public class DataNode implements FSConstants, Runnable {
 
                             //
                             // Open local disk out
-                            //
+                            // 往本地写的流
                             DataOutputStream out = new DataOutputStream(new BufferedOutputStream(data.writeToBlock(b)));
+                            // 往下个DN写的流
                             InetSocketAddress mirrorTarget = null;
+                            String name="";
                             try {
                                 //
                                 // Open network conn to backup machine, if 
@@ -336,9 +348,10 @@ public class DataNode implements FSConstants, Runnable {
                                 //
                                 DataInputStream in2 = null;
                                 DataOutputStream out2 = null;
-                                if (targets.length > 1) {
-                                    // Connect to backup machine
+                                if (targets.length > 1) {  //下面这段可以理解构建pepeline
+                                    // Connect to backup machine  镜像,下个副本目标
                                     mirrorTarget = createSocketAddr(targets[1].getName().toString());
+                                    LOG.info("******* OP_WRITE_BLOCK block="+b+",(2).与下一个节点建立连接,mirrorTarget=" + mirrorTarget);
                                     try {
                                         Socket s = new Socket(mirrorTarget.getAddress(), mirrorTarget.getPort());
                                         s.setSoTimeout(READ_TIMEOUT);
@@ -348,7 +361,9 @@ public class DataNode implements FSConstants, Runnable {
                                         // Write connection header
                                         out2.write(OP_WRITE_BLOCK);
                                         out2.writeBoolean(shouldReportBlock);
+                                        //开始往下一个节点写block 名字+长度
                                         b.write(out2);
+                                        //再把它的下个目标节点也传过去
                                         out2.writeInt(targets.length - 1);
                                         for (int i = 1; i < targets.length; i++) {
                                             targets[i].write(out2);
@@ -367,6 +382,8 @@ public class DataNode implements FSConstants, Runnable {
                                             }
                                         }
                                     }
+                                } else {
+                                    LOG.info("******* OP_WRITE_BLOCK block="+b+",(2)没有下游节点.无需建立连接");
                                 }
 
                                 //
@@ -377,14 +394,16 @@ public class DataNode implements FSConstants, Runnable {
                                     boolean anotherChunk = true;
                                     byte buf[] = new byte[BUFFER_SIZE];
 
-                                    while (anotherChunk) {
+                                    while (anotherChunk) { //循环读取block数据
                                         while (len > 0) {
+                                            //这里开始写真实的数据流
                                             int bytesRead = in.read(buf, 0, (int)Math.min(buf.length, len));
                                             if (bytesRead < 0) {
                                               throw new EOFException("EOF reading from "+s.toString());
                                             }
                                             if (bytesRead > 0) {
                                                 try {
+                                                    // 一边往本地磁盘写
                                                     out.write(buf, 0, bytesRead);
                                                 } catch (IOException iex) {
                                                     shutdown();
@@ -392,6 +411,7 @@ public class DataNode implements FSConstants, Runnable {
                                                 }
                                                 if (out2 != null) {
                                                     try {
+                                                        //一边通过网络往下个节点写
                                                         out2.write(buf, 0, bytesRead);
                                                     } catch (IOException out2e) {
                                                         //
@@ -409,10 +429,11 @@ public class DataNode implements FSConstants, Runnable {
                                                         }
                                                     }
                                                 }
-                                                len -= bytesRead;
+                                                len -= bytesRead; //剪掉已经读取的数据长度，剩余长度
                                             }
-                                        }
+                                        } //这个一直读取完这个块
 
+                                        //这代码是在循环内
                                         if (encodingType == RUNLENGTH_ENCODING) {
                                             anotherChunk = false;
                                         } else if (encodingType == CHUNKED_ENCODING) {
@@ -427,9 +448,11 @@ public class DataNode implements FSConstants, Runnable {
                                     }
 
                                     if (out2 == null) {
-                                        LOG.info("Received block " + b + " from " + s.getInetAddress());
+                                        LOG.info("******* OP_WRITE_BLOCK block="+b+",(3).块数据已经完成接受,没有下游节点" );
+                                        LOG.info("******* OP_WRITE_BLOCK block="+b+",(4).没有下游节点无需等待返回WRITE_COMPLETE" );
                                     } else {
                                         out2.flush();
+                                        LOG.info("******* OP_WRITE_BLOCK block="+b+",(3).块数据已经完成接受，等待下游节点回复结果WRITE_COMPLETE" );
                                         long complete = in2.readLong();
                                         if (complete != WRITE_COMPLETE) {
                                             LOG.info("Conflicting value for WRITE_COMPLETE: " + complete);
@@ -439,8 +462,9 @@ public class DataNode implements FSConstants, Runnable {
                                         DatanodeInfo mirrorsSoFar[] = newLB.getLocations();
                                         for (int k = 0; k < mirrorsSoFar.length; k++) {
                                             mirrors.add(mirrorsSoFar[k]);
+                                            name = name + mirrorsSoFar[k].getName().toString() + ",";
                                         }
-                                        LOG.info("Received block " + b + " from " + s.getInetAddress() + " and mirrored to " + mirrorTarget);
+                                        LOG.info("******* OP_WRITE_BLOCK block="+b+",(4).下游节点成功返回WRITE_COMPLETE："+complete+",下游所有节点:" + name);
                                     }
                                 } finally {
                                     if (out2 != null) {
@@ -463,8 +487,9 @@ public class DataNode implements FSConstants, Runnable {
                             // in full, if we've been asked to.  This is done
                             // during NameNode-directed block transfers, but not
                             // client writes.
-                            //
-                            if (shouldReportBlock) {
+
+                            // 如果namenode要求的话，告诉他们我们已经收到了完整的数据块。这是在面向namenode的块传输过程中完成的，而不是在客户端写入过程中。client 会设置shouldReportBlock=false
+                            if (shouldReportBlock) {  // 这个难道就是增量汇报的逻辑,我操 ， 为什么需要汇报，因为NN需要移除待复制块列表。
                                 synchronized (receivedBlockList) {
                                     receivedBlockList.add(b);
                                     receivedBlockList.notifyAll();
@@ -475,8 +500,10 @@ public class DataNode implements FSConstants, Runnable {
                             // Tell client job is done, and reply with
                             // the new LocatedBlock.
                             //
+
                             reply.writeLong(WRITE_COMPLETE);
                             mirrors.add(curTarget);
+                            LOG.info("******* OP_WRITE_BLOCK block="+b+",(6).回复上游节点 ："+s.toString()+",返回WRITE_COMPLETE,下游和自己的DN列表:{"+name+","+curTarget.getName().toString()+"}");
                             LocatedBlock newLB = new LocatedBlock(b, (DatanodeInfo[]) mirrors.toArray(new DatanodeInfo[mirrors.size()]));
                             newLB.write(reply);
                         } finally {
@@ -618,13 +645,13 @@ public class DataNode implements FSConstants, Runnable {
                         // Header info
                         //
                         out.write(OP_WRITE_BLOCK);
-                        out.writeBoolean(true);
+                        out.writeBoolean(true);  // 这里会通知下个DN 这是一个 数据传输的DN的DataTransfer写入的block, 不是client写的。
                         b.write(out);
                         out.writeInt(targets.length);
                         for (int i = 0; i < targets.length; i++) {
                             targets[i].write(out);
                         }
-                        out.write(RUNLENGTH_ENCODING);
+                        out.write(RUNLENGTH_ENCODING);  // 数据传输场景为什么是 RUNLENGTH_ENCODING
                         out.writeLong(filelen);
 
                         //

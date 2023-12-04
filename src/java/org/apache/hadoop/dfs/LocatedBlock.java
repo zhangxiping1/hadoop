@@ -76,4 +76,16 @@ public class LocatedBlock implements Writable {
             locs[i].readFields(in);
         }
     }
+
+    public String toString() {
+        StringBuffer result = new StringBuffer();
+        result.append(b);
+        result.append(",datanode(s)={");
+        for (int i = 0; i < locs.length; i++) {
+            result.append(locs[i]);
+            result.append(",");
+        }
+        result.append("}");
+        return result.toString();
+    }
 }

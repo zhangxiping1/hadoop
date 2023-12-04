@@ -17,9 +17,11 @@ package org.apache.hadoop.dfs;
 
 import java.io.*;
 import java.util.*;
+import java.util.logging.Logger;
 
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.conf.*;
+import org.apache.hadoop.util.LogFormatter;
 
 /**************************************************
  * FSDataset manages a set of data blocks.  Each block
@@ -29,7 +31,7 @@ import org.apache.hadoop.conf.*;
  ***************************************************/
 public class FSDataset implements FSConstants {
     static final double USABLE_DISK_PCT = 0.98;
-
+    public static final Logger LOG = LogFormatter.getLogger("org.apache.hadoop.dfs.FSDataset");
   /**
      * A node type that can be built into a tree reflecting the
      * hierarchy of blocks on the local disk.
@@ -69,6 +71,7 @@ public class FSDataset implements FSConstants {
             //
             // Add to the local dir, if no child dirs
             //
+            LOG.info("******* OP_WRITE_BLOCK block="+b+",(5).finalizeBlock ：rename "+src+" to " + new File(dir, b.getBlockName()));
             if (children == null) {
                 src.renameTo(new File(dir, b.getBlockName()));
 

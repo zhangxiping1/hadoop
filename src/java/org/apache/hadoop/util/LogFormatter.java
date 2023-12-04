@@ -24,7 +24,7 @@ import java.util.Date;
 /** Prints just the date and the log message. */
 
 public class LogFormatter extends Formatter {
-  private static final String FORMAT = "yyMMdd HHmmss";
+  private static final String FORMAT = "yyyy-MM-dd HH:mm:ss";
   private static final String NEWLINE = System.getProperty("line.separator");
 
   private final Date date = new Date();
@@ -74,18 +74,18 @@ public class LogFormatter extends Formatter {
       date.setTime(record.getMillis());
       formatter.format(date, buffer, new FieldPosition(0));
     }
-    
+    buffer.append(" ");
+    buffer.append(record.getLevel());
     // the thread id
-    if (showThreadIDs) {
+    if (true) {
       buffer.append(" ");
-      buffer.append(record.getThreadID());
+      buffer.append("["+Thread.currentThread().getName()+"] ");
     }
 
+    buffer.append("("+record.getSourceClassName()+":"+record.getSourceMethodName()+")");
+
     // handle SEVERE specially
-    if (record.getLevel() == Level.SEVERE) {
-      buffer.append(" SEVERE");                   // flag it in log
-      loggedSevere= true;                         // set global flag
-    }
+
 
     // the message
     buffer.append(" ");

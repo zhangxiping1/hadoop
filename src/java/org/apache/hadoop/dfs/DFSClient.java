@@ -30,6 +30,9 @@ import java.util.logging.*;
  * DFSClient can connect to a Hadoop Filesystem and perform basic file tasks.
  * Connects to a namenode daemon.
  * @author Mike Cafarella, Tessa MacDuff
+ *
+ * RPC DFSClient 实现了主要是动态代理的使用：协议（ ClientProtocol namenode），invoker （里面封装了client : 发送函数调用到远程server）, Invocation(函数及参数的封装)
+ * 最主要的数据读写DFSinputStream，DFSOutputStream实现也在该类里
  ********************************************************/
 public class DFSClient implements FSConstants {
     public static final Logger LOG = LogFormatter.getLogger("org.apache.hadoop.fs.DFSClient");
@@ -336,10 +339,10 @@ public class DFSClient implements FSConstants {
                         LOG.info("No node available for block " + blocks[targetBlock]);
                     }
                     LOG.info("Could not obtain block from any node:  " + ie);
-                    try {
-                        Thread.sleep(10000);
-                    } catch (InterruptedException iex) {
-                    }
+//                    try {
+//                        Thread.sleep(10000);
+//                    } catch (InterruptedException iex) {
+//                    }
                     deadNodes.clear();
                     openInfo();
                     failures++;
@@ -545,8 +548,10 @@ public class DFSClient implements FSConstants {
                 while (! blockComplete) {
                     if (firstTime) {
                         lb = namenode.create(src.toString(), clientName.toString(), overwrite);
+                        LOG.info("*********** creating file " + src +",(1&2).create and add block:" + lb);
                     } else {
                         lb = namenode.addBlock(src.toString());
+                        LOG.info("*********** creating file " + src +",(2).add block:" + lb);
                     }
 
                     if (lb == null) {
@@ -596,13 +601,13 @@ public class DFSClient implements FSConstants {
                 //
                 DataOutputStream out = new DataOutputStream(new BufferedOutputStream(s.getOutputStream()));
                 out.write(OP_WRITE_BLOCK);
-                out.writeBoolean(false);
+                out.writeBoolean(false);  // 无需增量汇报  非数据传输，nn的块复制场景。 正常写，client会调用 reportWrittenBlock
                 block.write(out);
                 out.writeInt(nodes.length);
                 for (int i = 0; i < nodes.length; i++) {
                     nodes[i].write(out);
                 }
-                out.write(CHUNKED_ENCODING);
+                out.write(CHUNKED_ENCODING); //client 写场景是CHUNKED_ENCODING ，数据传输场景是RUNLENGTH_ENCODING ？
                 bytesWrittenToBlock = 0;
                 blockStream = out;
                 blockReplyStream = new DataInputStream(new BufferedInputStream(s.getInputStream()));
@@ -641,9 +646,19 @@ public class DFSClient implements FSConstants {
             if (closed) {
                 throw new IOException("Stream closed");
             }
-            while (len > 0) {
-              int remaining = BUFFER_SIZE - pos;
+            while (len > 0) {  // 循环在这呢
+//                try {
+//                    Thread.sleep(10000);
+//                } catch (InterruptedException e) {
+//                    throw new RuntimeException(e);
+//                }
+                int remaining = BUFFER_SIZE - pos;
               int toWrite = Math.min(remaining, len);
+//                src：要复制的源数组
+//                srcPos：源数组的起始位置索引
+//                dest：目标数组
+//                destPos：目标数组的起始位置索引
+//                length：要复制的元素数量
               System.arraycopy(b, off, outBuf, pos, toWrite);
               pos += toWrite;
               off += toWrite;
@@ -689,7 +704,7 @@ public class DFSClient implements FSConstants {
                 //
                 if (blockStreamWorking) {
                     try {
-                        blockStream.writeLong(workingPos);
+                        blockStream.writeLong(workingPos); // 在这个地方先写入了长度
                         blockStream.write(outBuf, 0, workingPos);
                     } catch (IOException ie) {
                         try {
@@ -723,7 +738,6 @@ public class DFSClient implements FSConstants {
          */
         private synchronized void endBlock() throws IOException {
             boolean mustRecover = ! blockStreamWorking;
-
             //
             // A zero-length set of data indicates the end of the block
             //
@@ -756,7 +770,7 @@ public class DFSClient implements FSConstants {
             //
             while (mustRecover) {
                 nextBlockOutputStream(false);
-                InputStream in = new FileInputStream(backupFile);
+                InputStream in = new FileInputStream(backupFile);   //  最大一个块大小的备份文件
                 try {
                     byte buf[] = new byte[BUFFER_SIZE];
                     int bytesRead = in.read(buf);
@@ -783,7 +797,7 @@ public class DFSClient implements FSConstants {
             }
 
             //
-            // Delete local backup, start new one
+            // Delete local backup, start new one    通过逻辑分析，每个块写操作作为原子，所以最大一个块大小的备份文件
             //
             backupFile.delete();
             backupFile = File.createTempFile("dfsout", "bak");
@@ -799,13 +813,17 @@ public class DFSClient implements FSConstants {
             blockStream.flush();
 
             long complete = blockReplyStream.readLong();
+
             if (complete != WRITE_COMPLETE) {
                 LOG.info("Did not receive WRITE_COMPLETE flag: " + complete);
                 throw new IOException("Did not receive WRITE_COMPLETE_FLAG: " + complete);
             }
+            LOG.info("******************* creating file " + src +",(3).等待DN回复块WRITE_COMPLETE(-889528038)信号 blockReplyStream.readLong = "+complete);
                     
             LocatedBlock lb = new LocatedBlock();
             lb.readFields(blockReplyStream);
+            // 回复 NN 才会添加到 NN的集合里。
+            LOG.info("******************* creating file " + src+ ",(4).读取从DN回复的块的信息 ,reportWrittenBlock报告给NN,lb="+lb);
             namenode.reportWrittenBlock(lb);
 
             blockStream.close();
@@ -838,6 +856,7 @@ public class DFSClient implements FSConstants {
             long localstart = System.currentTimeMillis();
             boolean fileComplete = false;
             while (! fileComplete) {
+                LOG.info("*************************** creating file " + src + ",(5).complete file ");
                 fileComplete = namenode.complete(src.toString(), clientName.toString());
                 if (!fileComplete) {
                     try {

@@ -90,7 +90,7 @@ public class Block implements Writable, Comparable {
     /**
      */
     public String toString() {
-        return getBlockName();
+        return getBlockName()+",length:"+len;
     }
 
     /////////////////////////////////////

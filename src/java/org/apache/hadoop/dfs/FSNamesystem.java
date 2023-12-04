@@ -46,7 +46,7 @@ public class FSNamesystem implements FSConstants {
     // Stores the block-->datanode(s) map.  Updated only in response
     // to client-sent information.
     //
-    TreeMap blocksMap = new TreeMap();
+    TreeMap blocksMap = new TreeMap(); // 对应的目录树中存在文件，dir中activeBlocks集合才会存在block  与blockMaps区别在于，blockMaps包括正在写的文件已完成的block
 
     //
     // Stores the datanode-->block map.  Done by storing a 
@@ -59,14 +59,16 @@ public class FSNamesystem implements FSConstants {
     // Keeps a Vector for every named machine.  The Vector contains
     // blocks that have recently been invalidated and are thought to live
     // on the machine in question.
-    //
+    //` invalidate `列表用来通知datanode该数据块应该被删除。在向namenode发出指令后，元素会从无效列表中删除。
+    // 添加有两种情况：1.超过最大副本数，2.删除文件时，会将文件的所有块放入invalidate列表中
+    // 什么时候删除呢？当datanode向namenode发送心跳getBlockwork时
     TreeMap recentInvalidateSets = new TreeMap();
 
     //
     // Keeps a TreeSet for every named node.  Each treeset contains
     // a list of the blocks that are "extra" at that location.  We'll
     // eventually remove these extras.
-    //
+    // 冗余副本列表，用来存储超过最大副本数的数据块
     TreeMap excessReplicateMap = new TreeMap();
 
     //
@@ -78,6 +80,7 @@ public class FSNamesystem implements FSConstants {
     //
     // Keeps track of the blocks that are part of those pending creates
     //
+    // pendingCreate文件所包含的块，可能这个文件10个块，但是文件还没有创建完成，只有5个块已经创建完成，那么这个文件就会有5个块在这个列表中
     TreeSet pendingCreateBlocks = new TreeSet();
 
     //
@@ -252,6 +255,7 @@ public class FSNamesystem implements FSConstants {
 
                 // Get the array of replication targets 
                 DatanodeInfo targets[] = chooseTargets(this.desiredReplication, null);
+                LOG.info("******** creating file " + src +",(1).chooseTargets 选取DN节点："+ Arrays.stream(targets).toArray().toString());
                 if (targets.length < this.minReplication) {
                     LOG.warning("Target-length is " + targets.length +
                         ", below MIN_REPLICATION (" + this.minReplication+ ")");
@@ -259,18 +263,22 @@ public class FSNamesystem implements FSConstants {
                 }
 
                 // Reserve space for this pending file
+                LOG.info("******** creating file "+ src +",(2).添加到 pendingCreates{src, new Vector(blocks)}");
                 pendingCreates.put(src, new Vector());
                 synchronized (leases) {
                     Lease lease = (Lease) leases.get(holder);
                     if (lease == null) {
                         lease = new Lease(holder);
+                        LOG.info("******** creating file "+ src +",(3)client没有租约，申请新租约lease:"+ lease+",放入到 leases,sortedLeases");
                         leases.put(holder, lease);
                         sortedLeases.add(lease);
                     } else {
+                        LOG.info("******** creating file "+ src +",(3)client有租约，更新租约lease:"+ lease);
                         sortedLeases.remove(lease);
                         lease.renew();
                         sortedLeases.add(lease);
                     }
+                    LOG.info("******** creating file "+ src +",(4)lease:"+ lease +"添加正在被创建的文件,维持正在create的多个文件");
                     lease.startedCreate(src);
                 }
 
@@ -299,11 +307,13 @@ public class FSNamesystem implements FSConstants {
      */
     public synchronized Object[] getAdditionalBlock(UTF8 src) {
         Object results[] = null;
+        LOG.info("******** creating file "+ src +",(7).继续添加block，检查目录树dir不应存在改文件（已完成的文件才会放入dir）,pendingCreates正在被创建文件列表需要包含 : "+ src);
         if (dir.getFile(src) == null && pendingCreates.get(src) != null) {
             results = new Object[2];
 
             //
             // If we fail this, bad things happen!
+
             //
             if (checkFileProgress(src)) {
                 // Get the array of replication targets 
@@ -372,7 +382,11 @@ public class FSNamesystem implements FSConstants {
             //
             // REMIND - mjc - this is very inefficient!  We should
             // improve this!
-            //
+            // blocksMap
+
+
+            LOG.info("******** completeFile src:"+src+" 操作：pendingCreates维持了{src -> blocks},completeFile 这里会查询blocks(从 blocksMap) 里面的块的实际大小，然后修改块的大小，将它放入目录树中");
+            LOG.info("******** completeFile,blocksMap 这个结构是(client 写完块汇报/DN增量汇报)时修改，每次都遍历这个大集合耗性能: "+ src);
             for (int i = 0; i < pendingBlocks.length; i++) {
                 Block b = pendingBlocks[i];
                 TreeSet containingNodes = (TreeSet) blocksMap.get(b);
@@ -385,14 +399,18 @@ public class FSNamesystem implements FSConstants {
                     }
                 }
             }
+            LOG.info("******** 首先blocksMap 这个结构是DN快汇报时修改，这个文件pendingBlocks为什么需要设置块的大小？原来pendingCreates有{src -> blocks}这个映射关系，添加到目录树需要这个结构数据");
             
             //
             // Now we can add the (name,blocks) tuple to the filesystem
             //
+            LOG.info("******** creating file "+ src +",(11).completeFile,pendingCreates维持了{src -> blocks} 信息 写入到 目录数dir");
             if (dir.addFile(src, pendingBlocks)) {
                 // The file is no longer pending
                 pendingCreates.remove(src);
+                LOG.info("******** creating file "+ src +",(12).文件已写入目录树，移除pendingCreates{src -> blocks} src信息 ");
                 for (int i = 0; i < pendingBlocks.length; i++) {
+                    LOG.info("******** creating file "+ src +",(13).文件已写入目录树，移除pendingCreateBlocks{blocks} block信息："+pendingBlocks[i]);
                     pendingCreateBlocks.remove(pendingBlocks[i]);
                 }
 
@@ -400,7 +418,9 @@ public class FSNamesystem implements FSConstants {
                     Lease lease = (Lease) leases.get(holder);
                     if (lease != null) {
                         lease.completedCreate(src);
+                        LOG.info("******** creating file "+ src +",(13).租约Create文件列表移除该文件信息");
                         if (! lease.hasLocks()) {
+                            LOG.info("******** creating file "+ src +",(14).租约Create文件列表空，移除该租约信息");
                             leases.remove(holder);
                             sortedLeases.remove(lease);
                         }
@@ -441,6 +461,7 @@ public class FSNamesystem implements FSConstants {
     synchronized Block allocateBlock(UTF8 src) {
         Block b = new Block();
         Vector v = (Vector) pendingCreates.get(src);
+        LOG.info("******** creating file "+ src +",(5)申请了一个新块返回给client,block:"+b+"，放入到pendingCreates (src -> V集合(正在等待创建的块))和pendingCreateBlocks(正在等待创建的块)");
         v.add(b);
         pendingCreateBlocks.add(b);
         return b;
@@ -452,7 +473,7 @@ public class FSNamesystem implements FSConstants {
      */
     synchronized boolean checkFileProgress(UTF8 src) {
         Vector v = (Vector) pendingCreates.get(src);
-
+        LOG.info("******** creating file "+ src +",(8)检查文件前面写的所有块副本是否已达标(containingNodes.size>minReplication)，正常块完成后是会放入到blocksMap集合{block -> datanode(s)}，副本可能没有达标");
         for (Iterator it = v.iterator(); it.hasNext(); ) {
             Block b = (Block) it.next();
             TreeSet containingNodes = (TreeSet) blocksMap.get(b);
@@ -749,8 +770,11 @@ public class FSNamesystem implements FSConstants {
         Vector v = (Vector) pendingCreates.remove(src);
         for (Iterator it2 = v.iterator(); it2.hasNext(); ) {
             Block b = (Block) it2.next();
-            pendingCreateBlocks.remove(b);
-        }
+            //这里为什么没有直接移除 blockMaps里面的 ，还有DNinfo 里面的 （下面的DN块汇报（有这些无效的块）会添加回来 ，（冲突了！））
+            // The new report has a block the old one does not
+            //  addStoredBlock(newReport[newPos], node);
+
+            pendingCreateBlocks.remove(b); }
     }
 
     /**
@@ -878,29 +902,34 @@ public class FSNamesystem implements FSConstants {
         //
         int oldPos = 0, newPos = 0;
         Block oldReport[] = node.getBlocks();
+        LOG.info("********* processReport 处理DN块汇报信息："+name.toString());
         while (oldReport != null && newReport != null && oldPos < oldReport.length && newPos < newReport.length) {
             int cmp = oldReport[oldPos].compareTo(newReport[newPos]);
-            
-            if (cmp == 0) {
+            // 这里可以判断到TreeSet oldReport 与 newReport的blockid是按照升序排列的
+            // 这里在处理块汇报，拿DN内存里面 blocks集合（一方面块汇报形成，一方面是写入过程添加的）与新汇报的blocks集合进行比较，如果相同脚标的block相同就不做处理，如果不同就进行处理
+            if (cmp == 0) {                               //old DN{b1,b2,b3,b5}  new DN{b1,b2,b4,b6}
                 // Do nothing, blocks are the same
                 oldPos++;
                 newPos++;
             } else if (cmp < 0) {
                 // The old report has a block the new one does not
-                removeStoredBlock(oldReport[oldPos], node);
+                //// 这里在处理块汇报，拿DN内存里面 blocks集合与新汇报的blocks集合进行比较，如果相同脚标的old blockid小于new blockid，就删除old blockid
+                removeStoredBlock(oldReport[oldPos], node);  //old DN{b1,b2,b3,b5}  new DN{b1,b2,b4,b6}  blocksMap 删除 {b3 dn}
+                                                                            // ↑                  ↑
                 oldPos++;
-            } else {
+            } else {                                         //上面会走到这里 就会添加 {b4 dn}   //说道理就是以新的为准呗 ，新汇报的块有，blocksMap就添加，没有，blocksMap就删除
                 // The new report has a block the old one does not
                 addStoredBlock(newReport[newPos], node);
                 newPos++;
             }
         }
-        while (oldReport != null && oldPos < oldReport.length) {
+        while (oldReport != null && oldPos < oldReport.length) {   //old DN{b1,b2,b3,b5}  new DN{b1,b2}  //老的没遍历完，就把NN内存里老的后面删除（这个不太合理，如果DN文件丢失了，重启后就有问题）
             // The old report has a block the new one does not
             removeStoredBlock(oldReport[oldPos], node);
+            LOG.info("********* 不合理的删除，processReport 删除DN块："+oldReport[oldPos].toString());
             oldPos++;
         }
-        while (newReport != null && newPos < newReport.length) {
+        while (newReport != null && newPos < newReport.length) {  //old DN{b1,b2}  new DN{b1,b2,b3,b5}  //新的没遍历完，就把新的后面都加进来
             // The new report has a block the old one does not
             addStoredBlock(newReport[newPos], node);
             newPos++;
@@ -922,8 +951,20 @@ public class FSNamesystem implements FSConstants {
         //
         // This function considers every block on a datanode, and thus
         // should only be invoked infrequently.
-        //
+        //我们现在已经完全更新了节点的块报告。我们现在遍历它的所有块，找出哪些是无效的、不再挂起的或过度复制的。
+        //(注意，仅仅在过期时间内使块失效是不够的;datanode可能会在失败文件的租约到期之前宕机，从而错过“expire”事件。) （全量汇报意义：1.dn数据丢失）
+        // 他这个意思是（失效的块产生：1.主动删除产生的 ，2.DN宕机nn自动恢复副本，dn重启产生的 ，这些都会被getBlockwork调用删除）这个操作不足以清除无效的块
+        // 有一种场景：客户端写文件，写了一半，客户端宕机，文件写失败，这时候这些已经写完的块就是过时的，（目前无法通知DN清理）DN上存在这些过时的块，需要在下面的代码清理
+
+
+        //为什么判断pendingCreateBlocks.contains?： pendingCreate文件所包含的块，可能这个文件10个块，但是文件还没有创建完成，只有5个块已经创建完成（保存到blockMap），那么这个文件就会有5个块在这个列表中 ，这时DN上有五个块，
+        //当客户端正在写这个文件时，刚好这个DN(已经有完成的块)宕机了，租约到期会清理这些pendingCreateBlocks ，如果这个DN在过期前恢复了，并且DN上面有正在写的块，
+        // 如果不判断这个块是否在pendingCreateBlocks中，就会把这个块误删除了 ，如果客户端发生错误，这个DN在租约过期后恢复，就会正常删除
+
+        //该函数考虑datanode上的每个数据块，因此
+        //应该只在不频繁的情况下调用。
         Vector obsolete = new Vector();
+        //就这个循环要把集群搞死 ，遍历这个DN所有块，然后查询集群所有activeBlocks
         for (Iterator it = node.getBlockIterator(); it.hasNext(); ) {
             Block b = (Block) it.next();
 
@@ -943,6 +984,7 @@ public class FSNamesystem implements FSConstants {
         TreeSet containingNodes = (TreeSet) blocksMap.get(block);
         if (containingNodes == null) {
             containingNodes = new TreeSet();
+//            new Exception("************* blocksMap 添加块信息：block:"+ block + ",node:" +node).printStackTrace();
             blocksMap.put(block, containingNodes);
         }
         if (! containingNodes.contains(node)) {
@@ -950,14 +992,17 @@ public class FSNamesystem implements FSConstants {
         } else {
             LOG.info("Redundant addStoredBlock request received for block " + block + " on node " + node);
         }
-
+        LOG.info("******** blocksMap保存块和节点的映射关系，block："+ block + ",node:" +node);
+          // 果然是增量汇报 ，移除neededReplications 集合数据。
         synchronized (neededReplications) {
             if (dir.isValidBlock(block)) {
                 if (containingNodes.size() >= this.desiredReplication) {
+                    LOG.info("******** 满足指定的副本数block:"+block+",从待复制集合移除neededReplications,pendingReplications");
                     neededReplications.remove(block);
                     pendingReplications.remove(block);
                 } else if (containingNodes.size() < this.desiredReplication) {
                     if (! neededReplications.contains(block)) {
+                        LOG.info("******** 不满足指定的副本数block:"+block+",添加待复制集合neededReplications");
                         neededReplications.add(block);
                     }
                 }
@@ -966,12 +1011,16 @@ public class FSNamesystem implements FSConstants {
                 // Find how many of the containing nodes are "extra", if any.
                 // If there are any extras, call chooseExcessReplicates() to
                 // mark them in the excessReplicateMap.
-                //
+                //下面这个逻辑是，每次添加blocksMap {block DNs}时，判断是否超过最大副本数，如果超过就调用chooseExcessReplicates()方法，将超过的副本数放入excessReplicateMap
+                //正常情况下，只要比较containingNodes.size() >= this.desiredReplication就可以了，但是这里多了一个excessReplicateMap ，试想一下这个场景，集群有五个DN，
+                // 一个块有三个副本，当正好两个块上的DN停止，然后就会恢复到其他两个节点，这样就会出现一个块有五个副本，然后两台启动起来汇报，第一台汇报处理时这里就会计数，有四个 4-0 ，并且会将这个块随机选个DN放入excessReplicateMap
+                // 第二个启动时汇报，也会走到这里，这里也会遍历五个节点，然后发现这个块有个随机选的DN已经在excessReplicateMap里面了，并且包含这个块，这里还是会计数nonExcess.size=4，5-1
+                // 这个集合excessReplicateMap的目的就是排除这个块可能前面已经有冗余的DN
                 Vector nonExcess = new Vector();
                 for (Iterator it = containingNodes.iterator(); it.hasNext(); ) {
                     DatanodeInfo cur = (DatanodeInfo) it.next();
                     TreeSet excessBlocks = (TreeSet) excessReplicateMap.get(cur.getName());
-                    if (excessBlocks == null || ! excessBlocks.contains(block)) {
+                    if (excessBlocks == null || ! excessBlocks.contains(block)) { //正常第一次改DN excessBlocks == null 成立，
                         nonExcess.add(cur);
                     }
                 }
@@ -993,32 +1042,35 @@ public class FSNamesystem implements FSConstants {
      */
     void chooseExcessReplicates(Vector nonExcess, Block b, int maxReps) {
         while (nonExcess.size() - maxReps > 0) {
-            int chosenNode = r.nextInt(nonExcess.size());
+            int chosenNode = r.nextInt(nonExcess.size()); //随机选择一个DN
             DatanodeInfo cur = (DatanodeInfo) nonExcess.elementAt(chosenNode);
             nonExcess.removeElementAt(chosenNode);
 
             TreeSet excessBlocks = (TreeSet) excessReplicateMap.get(cur.getName());
-            if (excessBlocks == null) {
+            if (excessBlocks == null) { // 直接放进去 excessReplicateMap
                 excessBlocks = new TreeSet();
                 excessReplicateMap.put(cur.getName(), excessBlocks);
             }
-            excessBlocks.add(b);
+            excessBlocks.add(b); //放入excessReplicateMap {DN -> TreeSet{block1,block2,block3...}}
 
             //
             // The 'excessblocks' tracks blocks until we get confirmation
             // that the datanode has deleted them; the only way we remove them
             // is when we get a "removeBlock" message.  
-            //
+            //` excessblocks `会跟踪数据块，直到我们确认datanode已经删除了它们;我们删除它们的唯一方法是当我们收到“removeBlock”消息
+
             // The 'invalidate' list is used to inform the datanode the block 
             // should be deleted.  Items are removed from the invalidate list
             // upon giving instructions to the namenode.
-            //
+            //` invalidate `列表用来通知datanode该数据块应该被删除。在向namenode发出指令后，元素会从无效列表中删除。
+            // 删除有两种情况：1.超过最大副本数，2.删除文件时，会将文件的所有块放入invalidate列表中
+
             Vector invalidateSet = (Vector) recentInvalidateSets.get(cur.getName());
             if (invalidateSet == null) {
                 invalidateSet = new Vector();
                 recentInvalidateSets.put(cur.getName(), invalidateSet);
             }
-            invalidateSet.add(b);
+            invalidateSet.add(b); //放入recentInvalidateSets {DN -> Vector{block1,block2,block3...}}
         }
     }
 
@@ -1048,7 +1100,7 @@ public class FSNamesystem implements FSConstants {
         //
         // We've removed a block from a node, so it's definitely no longer
         // in "excess" there.
-        //
+        // // excessReplicateMap冗余副本 移除多余的副本
         TreeSet excessBlocks = (TreeSet) excessReplicateMap.get(node.getName());
         if (excessBlocks != null) {
             excessBlocks.remove(block);
@@ -1068,12 +1120,13 @@ public class FSNamesystem implements FSConstants {
         }
         //
         // Modify the blocks->datanode map
-        // 
+        //
         addStoredBlock(block, node);
 
         //
         // Supplement node's blockreport
         //
+        LOG.info("******** .DN.blocks "+node+"保存块信息, block:" +block);
         node.addBlock(block);
     }
 
@@ -1141,7 +1194,7 @@ public class FSNamesystem implements FSConstants {
         synchronized (neededReplications) {
             Object results[] = null;
 	    int scheduledXfers = 0;
-
+            //
             if (neededReplications.size() > 0) {
                 //
                 // Go through all blocks that need replications.  See if any
@@ -1162,10 +1215,10 @@ public class FSNamesystem implements FSConstants {
                     if (! dir.isValidBlock(block)) {
                         it.remove();
                     } else {
-                        TreeSet containingNodes = (TreeSet) blocksMap.get(block);
-                        if (containingNodes.contains(srcNode)) {
+                        TreeSet containingNodes = (TreeSet) blocksMap.get(block); //找到待复制块的DN
+                        if (containingNodes.contains(srcNode)) {  // 如果这个DN上有这个块  ,就选择 this.desiredReplication (3) - containingNodes.size() ,  this.maxReplicationStreams - xmitsInProgress  ,最小创建流
                             DatanodeInfo targets[] = chooseTargets(Math.min(this.desiredReplication - containingNodes.size(), this.maxReplicationStreams - xmitsInProgress), containingNodes);
-                            if (targets.length > 0) {
+                            if (targets.length > 0) {    // 假设这里传输的是两个目标DN
                                 // Build items to return
                                 replicateBlocks.add(block);
                                 replicateTargetSets.add(targets);
@@ -1189,8 +1242,8 @@ public class FSNamesystem implements FSConstants {
                         TreeSet containingNodes = (TreeSet) blocksMap.get(block);
 
                         if (containingNodes.size() + targets.length >= this.desiredReplication) {
-                            neededReplications.remove(block);
-                            pendingReplications.add(block);
+                            neededReplications.remove(block);  // 需要复制的集合移除 ,已经达到目标复制数(pendingReplications 已经添加了待复制的DN)
+                            pendingReplications.add(block);  // 等待复制的集合添加 ,包括 已选择的target DN
                         }
 
 			LOG.info("Pending transfer (block " + block.getBlockName() + ") from " + srcNode.getName() + " to " + targets.length + " destinations");
@@ -1203,6 +1256,7 @@ public class FSNamesystem implements FSConstants {
                     for (i = 0; i < targetMatrix.length; i++) {
                         targetMatrix[i] = (DatanodeInfo[]) replicateTargetSets.elementAt(i);
                     }
+                    // 返回这个节点待复制块 以及对应的 目标DN
 
                     results = new Object[2];
                     results[0] = replicateBlocks.toArray(new Block[replicateBlocks.size()]);
@@ -1314,6 +1368,7 @@ public class FSNamesystem implements FSConstants {
         // Now pick one
         //
         if (targetList.size() == 0) {
+            new Exception(Thread.currentThread().getName()+" No targets in chooseTarget()").printStackTrace();
             LOG.warning("Zero targets found, forbidden1.size=" +
                 ( forbidden1 != null ? forbidden1.size() : 0 ) +
                 " allowSameHostTargets=" + allowSameHostTargets +

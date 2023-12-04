@@ -35,6 +35,7 @@ import java.util.logging.*;
  * up.
  *
  * @author Mike Cafarella
+ * Namenode  listen 线程 ，handle 线程 ，HeartbeatMonitor 线程，LeaseMonitor 线程
  **********************************************************/
 public class NameNode implements ClientProtocol, DatanodeProtocol, FSConstants {
     public static final Logger LOG = LogFormatter.getLogger("org.apache.hadoop.dfs.NameNode");
@@ -156,6 +157,12 @@ public class NameNode implements ClientProtocol, DatanodeProtocol, FSConstants {
     public void reportWrittenBlock(LocatedBlock lb) throws IOException {
         Block b = lb.getBlock();
         DatanodeInfo targets[] = lb.getLocations();
+        String name = "";
+        for (int i = 0; i < targets.length; i++) {
+            name= name + targets[0].getName() + ",";
+        }
+        LOG.info("******** creating file ,(6).收到来自client的block完成报告，保存块和节点的映射关系，blocksMap{block-->datanode(s)} block："+ lb);
+//        new Exception("************* (感觉这个blocksMap（block-DNs）集合应该大部分情况都是client触发修改的，其他只有副本恢复时，是DN汇报触发修改的)，blockReceived client/DN数据传输(增量汇报) 调用的 ，添加块信息：block:" +b+ ",nodes:"+ name ).printStackTrace();
         for (int i = 0; i < targets.length; i++) {
             namesystem.blockReceived(b, targets[i].getName());
         }
@@ -305,6 +312,7 @@ public class NameNode implements ClientProtocol, DatanodeProtocol, FSConstants {
     }
 
     public void blockReceived(String sender, Block blocks[]) {
+        LOG.info("******************** 数据传输场景，增量汇报 from "+sender+": " + blocks.length+" blocks.");
         for (int i = 0; i < blocks.length; i++) {
             namesystem.blockReceived(blocks[i], new UTF8(sender));
         }
@@ -321,6 +329,7 @@ public class NameNode implements ClientProtocol, DatanodeProtocol, FSConstants {
      * Return a block-oriented command for the datanode to execute.
      * This will be either a transfer or a delete operation.
      */
+    // 获取 待复制 或 待删除的块
     public BlockCommand getBlockwork(String sender, int xmitsInProgress) {
         //
         // Ask to perform pending transfers, if any

@@ -37,7 +37,7 @@ public class DistributedFileSystem extends FileSystem {
     private Random r = new Random();
     private String name;
 
-    DFSClient dfs;
+    DFSClient dfs;        // 分布式文件系统里面有个DFSClient  ，DFSClient  里面有个  ClientProtocol 动态代理  ，代理的invoker  里面有个RPC  client
 
     /**
      * Create the ShareSet automatically, and then go on to
