@@ -87,8 +87,10 @@ public class StatusHttpServer {
     webServer.addContext(staticContext);
 
     // set up the context for "/" jsp files
-    webAppContext = 
-      webServer.addWebApplication("/", appDir + File.separator + name);
+
+    // namenode 设置的是 "/webapps/hdfs"  hdfs目录经过编译后会有index.html 还有最关键的WEB-INF目录, web.xml 描述了servlet-mapping的配置 ，
+    // 最后访问build/src/org/apache/hadoop/dfs/dfshealth_jsp.java，这里面会拼装页面返回
+    webAppContext = webServer.addWebApplication("/", appDir + File.separator + name);
     addServlet("stacks", "/stacks", StackServlet.class);
   }
 
