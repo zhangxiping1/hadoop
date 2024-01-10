@@ -49,6 +49,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.security.PrivilegedExceptionAction;
 import java.util.StringTokenizer;
+import java.util.UUID;
 
 import static org.apache.hadoop.ipc.TestRpcBase.newEmptyRequest;
 import static org.apache.hadoop.security.SaslRpcServer.AuthMethod.TOKEN;
@@ -175,9 +176,9 @@ public class Testjob {
 //        createFile(fs,new Path("/user/d/staing/a.txt"));
 
 //        fs.rename(new Path("/user/d/staing/a.txt"),new Path("/user/d"), Options.Rename.NONE);
-//        fs.delete(new Path("/a"),true);
+        fs.delete(new Path("/a"),true);
         fs.mkdirs(new Path("/a"));
-        for(int i=0;i<5;i++){
+        for(int i=0;i<100;i++){
             createFile(fs,new Path("/a/"+i));
             System.out.println("Created /a/"+i);
         }
@@ -207,7 +208,7 @@ public class Testjob {
         conf.set("mapred.child.java.opts","-Dfile.encoding=UTF-8");
         // 想查看中间生成的临时文件 ，通过设置AM启动debug调试
         conf.set("yarn.app.mapreduce.am.command-opts","-Dfile.encoding=UTF-8 ");//-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=9906
-        conf.set("mapreduce.job.queuename","root.default");
+        conf.set("mapreduce.job.queuename","root.pro");
         System.setProperty("file.encoding","utf-8");
         Long startTs = System.currentTimeMillis();
 
@@ -407,6 +408,55 @@ public class Testjob {
         }
         a_out.close();
         in.close();
+    }
+
+    @Test
+    public void testHdfsConcurrentApi() throws IOException {
+        UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
+        Configuration conf = new Configuration();
+
+        conf.set("ipc.client.rpc-timeout.ms", "120000");
+        conf.set("ipc.ping.interval", "120000");
+        conf.set("ipc.client.fallback-to-simple-auth-allowed", "true");
+        conf.set("dfs.client.socket-timeout", "3000000");
+        conf.set("dfs.replication", "3");
+        System.setProperty("java.security.krb5.conf", projectPath + "/target/test-classes/krb5.conf");
+        conf.set("fs.hdfs.impl.disable.cache", "true");
+        //
+        long time = System.currentTimeMillis();
+        for (int i = 0;i < 10;i++){
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (int j = 0;j < 500;j++){
+                            DistributedFileSystem fs = (DistributedFileSystem)FileSystem.get(conf);
+                            Path a =new Path("/a/"+ UUID.randomUUID().toString());
+                            System.out.println(Thread.currentThread().getName()+":createFile:"+a.toString());
+                            createFile(fs,a);
+                            System.out.println(
+                                Thread.currentThread().getName() + ":createFileEnd:listStatus:/b");
+                            fs.listStatus(new Path("/a"));
+                            System.out.println(
+                                Thread.currentThread().getName() + ":listStatus:/a end ,rename");
+                            fs.rename(a, new Path(a.toString() + "_rename"));
+                            System.out.println(
+                                Thread.currentThread().getName() + ":rename end ,delete");
+                            fs.delete(new Path(a.toString() + "_rename"), true);
+                            System.out.println(Thread.currentThread().getName()
+                                + ":delete end ,listEncryptionZones");
+                            fs.listEncryptionZones();
+                            System.out.println(
+                                Thread.currentThread().getName() + ":listEncryptionZones end");
+                        }
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }).start();
+        }
+        System.in.read();
     }
 
     @Test
