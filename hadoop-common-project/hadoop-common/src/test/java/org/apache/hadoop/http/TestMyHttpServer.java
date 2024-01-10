@@ -1,6 +1,6 @@
 package org.apache.hadoop.http;
 
-import com.google.common.collect.ImmutableMap;
+import org.apache.hadoop.thirdparty.com.google.common.collect.ImmutableMap;
 import com.sun.jersey.spi.container.servlet.ServletContainer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.http.resource.JerseyResource;

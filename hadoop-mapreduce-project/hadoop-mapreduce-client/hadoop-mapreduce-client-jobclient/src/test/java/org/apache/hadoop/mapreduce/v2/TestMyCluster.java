@@ -294,7 +294,21 @@ public class TestMyCluster {
         System.setProperty("hadoop.security.logger","INFO,DRFAS");
         System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%d{ISO8601} : %m%n");
     }
-    static Configuration getRMConf(Configuration conf, int index){
+    static void setNNLogLevel(){
+        System.setProperty("hadoop.metrics.logger","INFO,RFAMETRIC");
+        System.setProperty("hdfs.audit.logger","INFO,DRFAAUDIT");
+        System.setProperty("hadoop.root.logger","INFO,console");
+        System.setProperty("hadoop.security.logger","INFO,DRFAS");
+        System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%d{ISO8601} : %m%n");
+    }
+    static void setRMLogLevel(){
+        System.setProperty("hadoop.metrics.logger","INFO,RFAMETRIC");
+        System.setProperty("hadoop.root.logger","INFO,console");
+        System.setProperty("yarn.rm.appreport.logger","INFO,RFAAPPRPORT");
+        System.setProperty("hadoop.security.logger","INFO,DRFAS");
+        System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%d{ISO8601} : %m%n");
+    }
+    static Configuration getRMHAConf(Configuration conf, int index){
         System.setProperty("java.security.krb5.conf",projectPath+"/target/test-classes/krb5.conf");
         //不设置会提示MRAppMaster 类找不到
         conf.setBoolean("yarn.minicluster.use-rpc", true);
@@ -349,10 +363,60 @@ public class TestMyCluster {
         return conf;
     }
     //HA
+    static Configuration setHdfsHAConf(Configuration conf,int index ,boolean format) throws IOException {
+        conf.set("dfs.client.failover.proxy.provider.minidfs-ns","org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
+        conf.set("dfs.nameservices","minidfs-ns");
+        conf.set("fs.defaultFS","hdfs://minidfs-ns");
+        conf.set("dfs.nameservice.id","minidfs-ns");
+        conf.set("dfs.ha.namenodes.minidfs-ns","nn1,nn2");
+        conf.set("dfs.namenode.rpc-address.minidfs-ns.nn1","127.0.0.1:9020");
+        conf.set("dfs.namenode.rpc-address.minidfs-ns.nn2","127.0.0.1:9030");
+        conf.set("ipc.client.fallback-to-simple-auth-allowed","true");
+        conf.set("dfs.namenode.http-address.minidfs-ns.nn1","127.0.0.1:50070");
+        conf.set("dfs.namenode.http-address.minidfs-ns.nn2","127.0.0.1:50080");
+        conf.set("dfs.namenode.shared.edits.dir", "qjournal://127.0.0.1:8470;127.0.0.1:8471;127.0.0.1:8472/minidfs-ns");
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.keytab.file","/Users/temp/zhangxiping.keytab");
+        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.journalnode.kerberos.internal.spnego.principal","HTTP/127.0.0.1@EXAMPLE.COM");
+        conf.set("dfs.ha.namenode.id","nn"+index);
+        conf.set("dfs.namenode.name.dir","file:/"+projectPath.replaceAll("\\\\","/") +"/target/test-dir/dfs/name"+index);
+        conf.set("dfs.namenode.checkpoint.dir","file:/"+projectPath.replaceAll("\\\\","/") +"/target/test-dir/dfs/namesecondary"+index);
+        conf.set("ha.zookeeper.quorum","127.0.0.1:2181");
+        conf.set("dfs.ha.automatic-failover.enabled","true");
+        formatNameNode(conf,true,index);
+        return conf;
+    }
+
+    static void formatNameNode(Configuration conf,boolean format,int index) throws IOException {
+        Collection<URI> namespaceDirs = FSNamesystem.getNamespaceDirs(conf);
+        if (format) {
+            // delete the existing namespaces
+            for (URI nameDirUri : namespaceDirs) {
+                File nameDir = new File(nameDirUri);
+                if (nameDir.exists() && !FileUtil.fullyDelete(nameDir)) {
+                    throw new IOException("Could not fully delete " + nameDir);
+                }
+            }
+            // delete the checkpoint directories, if they exist
+            Collection<URI> checkpointDirs = Util.stringCollectionAsURIs(conf
+                .getTrimmedStringCollection(DFS_NAMENODE_CHECKPOINT_DIR_KEY));
+            for (URI checkpointDirUri : checkpointDirs) {
+                File checkpointDir = new File(checkpointDirUri);
+                if (checkpointDir.exists() && !FileUtil.fullyDelete(checkpointDir)) {
+                    throw new IOException("Could not fully delete " + checkpointDir);
+                }
+            }
+        }
+
+        if (index == 1 && format) {
+            HdfsServerConstants.StartupOption.FORMAT.setClusterId("minidfs-ns");
+            DFSTestUtil.formatNameNode(conf);
+        }
+    }
+
     @Test
     public void testKDC() throws Exception {
-        setLogLevel();
-        System.setProperty("hadoop.log.file","KDC.log");
         //先清理classpath配置文件
         clearClassPath();
         Configuration conf = new Configuration();
@@ -406,8 +470,6 @@ public class TestMyCluster {
     // 出现 keystore——old 找不到  使用超级管理员账户重启idea
     @Test
     public void testKMS() throws Exception {
-        setLogLevel();
-        System.setProperty("hadoop.log.file","KMS.log");
         final String keystore;
         final String password;
         File kmsDir = new File(projectPath +"/target/test-classes/" );
@@ -427,8 +489,6 @@ public class TestMyCluster {
     //HA
     @Test
     public void testMiniQJM() throws Exception {
-        setLogLevel();
-        System.setProperty("hadoop.log.file","JN.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new Configuration();
         //DefaultMetricsSystem.setMiniClusterMode(true);
@@ -453,64 +513,12 @@ public class TestMyCluster {
         System.in.read();
     }
 
-    static Configuration setHdfsHAConf(Configuration conf,int index ,boolean format) throws IOException {
-        conf.set("dfs.client.failover.proxy.provider.minidfs-ns","org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
-        conf.set("dfs.nameservices","minidfs-ns");
-        conf.set("fs.defaultFS","hdfs://minidfs-ns");
-        conf.set("dfs.nameservice.id","minidfs-ns");
-        conf.set("dfs.ha.namenodes.minidfs-ns","nn1,nn2");
-        conf.set("dfs.namenode.rpc-address.minidfs-ns.nn1","127.0.0.1:9020");
-        conf.set("dfs.namenode.rpc-address.minidfs-ns.nn2","127.0.0.1:9030");
-        conf.set("ipc.client.fallback-to-simple-auth-allowed","true");
-        conf.set("dfs.namenode.http-address.minidfs-ns.nn1","127.0.0.1:50070");
-        conf.set("dfs.namenode.http-address.minidfs-ns.nn2","127.0.0.1:50080");
-        conf.set("dfs.namenode.shared.edits.dir", "qjournal://127.0.0.1:8470;127.0.0.1:8471;127.0.0.1:8472/minidfs-ns");
-        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
-        conf.set("dfs.journalnode.keytab.file","/Users/temp/zhangxiping.keytab");
-        conf.set("dfs.journalnode.kerberos.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
-        conf.set("dfs.journalnode.kerberos.internal.spnego.principal","HTTP/127.0.0.1@EXAMPLE.COM");
-        conf.set("dfs.ha.namenode.id","nn"+index);
-        conf.set("dfs.namenode.name.dir","file:/"+projectPath.replaceAll("\\\\","/") +"/target/test-dir/dfs/name"+index);
-        conf.set("dfs.namenode.checkpoint.dir","file:/"+projectPath.replaceAll("\\\\","/") +"/target/test-dir/dfs/namesecondary"+index);
-        conf.set("ha.zookeeper.quorum","127.0.0.1:2181");
-        conf.set("dfs.ha.automatic-failover.enabled","true");
-        formatNameNode(conf,true,index);
-        return conf;
-    }
-
-    static void formatNameNode(Configuration conf,boolean format,int index) throws IOException {
-        Collection<URI> namespaceDirs = FSNamesystem.getNamespaceDirs(conf);
-        if (format) {
-            // delete the existing namespaces
-            for (URI nameDirUri : namespaceDirs) {
-                File nameDir = new File(nameDirUri);
-                if (nameDir.exists() && !FileUtil.fullyDelete(nameDir)) {
-                    throw new IOException("Could not fully delete " + nameDir);
-                }
-            }
-            // delete the checkpoint directories, if they exist
-            Collection<URI> checkpointDirs = Util.stringCollectionAsURIs(conf
-                .getTrimmedStringCollection(DFS_NAMENODE_CHECKPOINT_DIR_KEY));
-            for (URI checkpointDirUri : checkpointDirs) {
-                File checkpointDir = new File(checkpointDirUri);
-                if (checkpointDir.exists() && !FileUtil.fullyDelete(checkpointDir)) {
-                    throw new IOException("Could not fully delete " + checkpointDir);
-                }
-            }
-        }
-
-        if (index == 1 && format) {
-            HdfsServerConstants.StartupOption.FORMAT.setClusterId("minidfs-ns");
-            DFSTestUtil.formatNameNode(conf);
-        }
-    }
-
     //NO HA
     @Test
     public void testNoHANN() throws Exception {
         clearRMClassPath();
         clearClassPath();
-        setLogLevel();
+        setNNLogLevel();
         System.setProperty("hadoop.log.file","NN.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new HdfsConfiguration();
@@ -531,13 +539,14 @@ public class TestMyCluster {
         nn.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/hdfs-site.xml")));
         nn.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
         System.out.println("*********************** 文件写入成功!");
+
         System.in.read();
     }
 
     @Test
     public void testNN1() throws Exception {
         clearRMClassPath();
-        setLogLevel();
+        setNNLogLevel();
         System.setProperty("hadoop.log.file","NN1.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new HdfsConfiguration();
@@ -552,7 +561,7 @@ public class TestMyCluster {
     @Test
     public void testNN2() throws Exception {
         clearRMClassPath();
-        setLogLevel();
+        setNNLogLevel();
         System.setProperty("hadoop.log.file","NN2.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new HdfsConfiguration();
@@ -610,17 +619,16 @@ public class TestMyCluster {
 
     @Test
     public void testZK() throws Exception {
-        setLogLevel();
-        System.setProperty("hadoop.log.file","ZK.log");
         TestingServer zkServer = new TestingServer(new InstanceSpec(new File("/data/zkData"), 2181, -1, -1, false, -1),true);
         zkServer.start();
         System.in.read();
     }
 
+    // 出现断言失败：Should hold namesystem read lock  idea修改Edit configuration templates…  JVM 参数 -ea 改成 -da
     @Test
     public void testRM() throws Exception {
         clearRMClassPath();
-        setLogLevel();
+        setRMLogLevel();
         System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%m%n");
         System.setProperty("hadoop.log.file","RM.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
@@ -650,8 +658,8 @@ public class TestMyCluster {
         conf.set("yarn.resourcemanager.fs.state-store.uri","/rmstore");
 
         conf.set("yarn.scheduler.capacity.resource-calculator","org.apache.hadoop.yarn.util.resource.DominantResourceCalculator");
-        //conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
-        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.FairScheduler");
+        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler");
+//        conf.set("yarn.resourcemanager.scheduler.class","org.apache.hadoop.yarn.server.resourcemanager.scheduler.fair.FairScheduler");
         conf.set("yarn.scheduler.capacity.label-metrics.enable","true");
         conf.set("yarn.resourcemanager.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("yarn.resourcemanager.keytab","/Users/temp/zhangxiping.keytab");
@@ -692,26 +700,26 @@ public class TestMyCluster {
     @Test
     public void testRM1() throws Exception {
         clearRMClassPath();
-        setLogLevel();
+        setRMLogLevel();
         System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%m%n");
         System.setProperty("hadoop.log.file","RM1.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new YarnConfiguration();
         ResourceManager rm1 = new ResourceManager();
-        rm1.init(getRMConf(conf,1));
+        rm1.init(getRMHAConf(conf,1));
         rm1.start();
         System.in.read();
     }
 
     @Test
     public void testRM2() throws Exception {
-        setLogLevel();
+        setRMLogLevel();
         System.setProperty("log4j.appender.RFAMETRIC.layout.ConversionPattern","%m%n");
         System.setProperty("hadoop.log.file","RM2.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         Configuration conf = new YarnConfiguration();
         ResourceManager rm1 = new ResourceManager();
-        rm1.init(getRMConf(conf,2));
+        rm1.init(getRMHAConf(conf,2));
         rm1.start();
         Thread.sleep(3000);
         Configuration config = rm1.getConfig();
@@ -737,8 +745,6 @@ public class TestMyCluster {
      */
     @Test
     public void testHS() throws Exception {
-        setLogLevel();
-        System.setProperty("hadoop.log.file","JHS.log");
         Configuration conf =new Configuration();
         System.setProperty("hadoop.root.logger","DEBUG,stdout");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
@@ -750,7 +756,6 @@ public class TestMyCluster {
         conf.set("mapreduce.jobhistory.keytab","/Users/temp/zhangxiping.keytab");
         //conf.set("mapreduce.jobhistory.http.policy","HTTPS_ONLY");
         conf.unset("dfs.http.policy");
-        System.out.println("**************** dfs.http.policy"+ conf.get("dfs.http.policy"));
         conf.set("mapreduce.jobhistory.principal","zhangxiping/127.0.0.1@EXAMPLE.COM");
         conf.set("mapreduce.jobhistory.keytab","/Users/temp/zhangxiping.keytab");
         conf.set("yarn.log-aggregation-enable","true");
@@ -767,7 +772,7 @@ public class TestMyCluster {
     @Test
     public void testNM1() throws Exception {
         setLogLevel();
-        System.setProperty("hadoop.log.file","NM.log");
+        System.setProperty("hadoop.log.file","NM1.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
         NodeManager nm = new NodeManager();
@@ -806,7 +811,7 @@ public class TestMyCluster {
     @Test
     public void testNM4() throws Exception {
         setLogLevel();
-        System.setProperty("hadoop.log.file","NM4_metrics.log");
+        System.setProperty("hadoop.log.file","NM4.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
@@ -820,7 +825,7 @@ public class TestMyCluster {
     @Test
     public void testNM5() throws Exception {
         setLogLevel();
-        System.setProperty("hadoop.log.file","NM5_metrics.log");
+        System.setProperty("hadoop.log.file","NM5.log");
         UserGroupInformation.loginUserFromKeytab("zhangxiping/127.0.0.1@EXAMPLE.COM","/Users/temp/zhangxiping.keytab");
         System.setProperty("HADOOP_USER_NAME","root");
         System.setProperty("java.security.krb5.conf",projectPath + "/target/test-classes/krb5.conf");
