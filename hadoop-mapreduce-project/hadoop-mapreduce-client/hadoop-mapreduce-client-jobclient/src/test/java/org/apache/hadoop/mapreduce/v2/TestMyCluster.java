@@ -538,6 +538,8 @@ public class TestMyCluster {
         nn.getConf().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
         nn.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/hdfs-site.xml")));
         nn.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
+        nn.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/hdfs-site.xml")));
+        nn.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/core-site.xml")));
         System.out.println("*********************** 文件写入成功!");
 
         System.in.read();
@@ -584,6 +586,8 @@ public class TestMyCluster {
         nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/core-site.xml")));
         nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/hdfs-site.xml")));
         nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
+        nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/hdfs-site.xml")));
+        nn2.getConf().writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/core-site.xml")));
         System.out.println("*********************** 文件写入成功!");
         System.in.read();
     }
@@ -693,6 +697,8 @@ public class TestMyCluster {
         config.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/yarn-site.xml")));
         config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
         config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/yarn-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/core-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/yarn-site.xml")));
 
         System.in.read();
     }
@@ -736,6 +742,8 @@ public class TestMyCluster {
         config.writeXml(new FileOutputStream(new File("/hadoop-2.9.2-1.1.1.5/etc/hadoop/yarn-site.xml")));
         config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/core-site.xml")));
         config.writeXml(new FileOutputStream(new File("/hadoop-3.3.0-1.1.1/etc/hadoop/yarn-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/core-site.xml")));
+        config.writeXml(new FileOutputStream(new File("/hadoop-3.3.6/etc/hadoop/yarn-site.xml")));
         System.out.println("*********************** 文件写入成功!");
         System.in.read();
     }
