@@ -33,6 +33,10 @@ org.apache.hadoop.fs.azurebfs.contracts.exceptions
 org.apache.hadoop.fs.azurebfs.contracts.services
 org.apache.hadoop.fs.azurebfs.enums
 org.apache.hadoop.fs.azurebfs.oauth2
+org.apache.hadoop.fs.compat
+org.apache.hadoop.fs.compat.cases
+org.apache.hadoop.fs.compat.common
+org.apache.hadoop.fs.compat.suites
 org.apache.hadoop.fs.cosn
 org.apache.hadoop.fs.cosn.auth
 org.apache.hadoop.fs.crypto
@@ -202,9 +206,6 @@ org.apache.hadoop.nfs
 org.apache.hadoop.nfs.nfs3
 org.apache.hadoop.nfs.nfs3.request
 org.apache.hadoop.nfs.nfs3.response
-org.apache.hadoop.oncrpc
-org.apache.hadoop.oncrpc.security
-org.apache.hadoop.portmap
 org.apache.hadoop.record
 org.apache.hadoop.registry.cli
 org.apache.hadoop.registry.client.api
